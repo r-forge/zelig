@@ -1,0 +1,162 @@
+\SweaveOpts{results=hide, prefix.string=vigpics/normalnet}
+\include{zinput}
+%\VignetteIndexEntry{Network Normal Regression for Continuous Proximity Matrix Dependent Variables}
+%\VignetteDepends{Zelig, stats}
+%\VignetteKeyWords{model,least squares,continuous, regression}
+%\VignettePackage{Zelig}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+<<loadLibrary, echo=F,results=hide>>=
+library(Zelig)
+@ 
+
+\section{{\tt normal.net}: Network Normal Regression for Continuous Proximity Matrix Dependent Variables}
+
+The Network Normal regression model is a close variant of the more standard least squares regression model (see {\tt netlm}). Both models specify a continuous proximity matrix (a.k.a. sociomatricies, adjacency matrices, or matrix representations of directed graphs) dependent variable as a linear function of a set of explanatory variables. The network Normal model reports maximum likelihood (rather than least squares) estimates. The two models differ only in their estimate for the stochastic parameter $\sigma$.
+
+\subsubsection{Syntax}
+\begin{verbatim}
+> z.out <- zelig(y ~ x1 + x2, model = "normal.net", data = mydata) 
+> x.out <- setx(z.out)
+> s.out <- sim(z.out, x = x.out)
+\end{verbatim}
+
+\subsubsection{Additional Inputs}
+
+In addition to the standard inputs, {\tt zelig()} takes the following additional options for network normal regression:
+
+\begin{itemize}
+\item {\tt LF}: specifies the link function to be used for the network normal regression. Default is {\tt LF="identity"}, but {\tt LF} can also be set to {\tt "log"} or {\tt "inverse"} by the user.
+\end{itemize}
+
+\subsubsection{Examples}
+\begin{enumerate}
+\item Basic Example
+
+Load the sample data (see {\tt ?friendship} for details on the structure of the network dataframe):
+
+<<echo=TRUE, results=hide, fig=FALSE>>=
+data(friendship)
+
+
+
+@
+Estimate model:
+
+<<echo=TRUE, results=hide, fig=FALSE>>=
+z.out <- zelig(perpower ~ friends + advice + prestige, model = "normal.net", data = friendship)
+summary(z.out)
+
+@
+Setting values for the explanatory variables to their default values:
+
+<<echo=TRUE, results=hide, fig=FALSE>>=
+x.out <- setx(z.out)
+
+@
+Simulate fitted values.
+<<echo=TRUE, results=hide, fig=FALSE>>=
+s.out <- sim(z.out, x = x.out) 
+summary(s.out) 
+plot(s.out) 
+
+@
+
+\begin{figure}[here]
+\centering
+<<fig=TRUE,echo=false, width=12, height=6>>=
+plot(s.out)
+@
+\label{fig:plotgam}
+\end{figure}
+
+\end{enumerate}
+
+
+
+\subsubsection{Model}
+The {\tt normal.net} model performs a Normal regression of the proximity matrix $\mathbf{Y}$, a $m \times m$ matrix representing network ties, on a set of proximity matrices $\mathbf{X}$. This network regression model is directly analogous to standard Normal regression element-wise on the appropriately vectorized matrices. Proximity matrices are vectorized by creating $Y$, a $m^2 \times 1$ vector to represent the proximity matrix. The vectorization which produces the $Y$ vector from the $\mathbf{Y}$ matrix is performed by simple row-concatenation of $\mathbf{Y}$. For example, if $\mathbf{Y}$ is a $15 \times 15$ matrix, the $\mathbf{Y}_{1,1}$ element is the first element of $Y$, and the $\mathbf{Y}_{2,1}$ element is the second element of $Y$ and so on. Once the input matrices are vectorized, standard Normal regression is performed. 
+
+Let $Y_{i}$ be the continuous dependent variable, produced by vectorizing a continuous proximity matrix, for observation $i$.  
+\begin{itemize}
+\item The \emph{stochastic component} is described by a univariate normal model with a vector of means $\mu_i$ and scalar variance $\sigma^2$: 
+\begin{equation*}
+Y_{i}  \sim \text{Normal} ( \mu_{i}, \sigma^2).\\
+\end{equation*}
+\item The \emph{systematic component} is given by:
+\begin{equation*}
+\mu_i = x_i\beta.
+\end{equation*}
+where $ x_i$ is the vector of $k$ explanatory variables and $\beta$ is the vector of coefficients.
+\end{itemize}
+
+
+\subsubsection{Quantities of Interest}
+The quantities of interest for the network Normal regression are the same as those for the standard Normal regression. 
+\begin{itemize}
+\item The expected value ({\tt qi\$ev}) for the {\tt normal.net} model is the mean of simulations from the stochastic component,  
+\begin{equation*}
+E(Y) = \mu_{i} =  x_{i}\beta,
+\end{equation*}
+given a draw of $\beta$ from its posterior.
+
+\item The predicted value ({\tt qi\$pr}) is a draw from the distribution defined by the set of parameters $(\mu_i, \sigma^2)$. 
+
+\item The first difference ({\tt qi\$fd}) for the network Normal model is defined as 
+\begin{equation*}
+FD = \text{Pr}(Y| x_{1}) - \text{Pr}(Y| x)
+\end{equation*}
+\end{itemize}
+
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you may view. For example, you run \verb{ z.out <- zelig(y ~ x, model = "normal.net", data){, then you may examine the available information in {\tt z.out} by using {\tt names(z.out)}, see the coefficients by using {\tt z.out\$coefficients}, and a default summary of information through {\tt summary(z.out)}. Other elements available through the {\tt \$} operator are listed below. 
+\begin{itemize}
+\item From the {\tt zelig()} output stored in {\tt  z.out}, you may extract:
+\begin{itemize}
+\item {\tt coefficients}: parameter estimates for the explanatory variables.
+\item {\tt fitted.values}: the vector of fitted values for the systemic component $\lambda$.
+\item {\tt residuals}: the working residuals in the final iteration of the IWLS fit. 
+\item {\tt linear.predictors}: fitted values. For the normal model, these are identical to fitted values.
+\item {\tt aic}: Akaike's Information Criterion (minus twice the maximized log-likelihood plus twice the number of coefficients).
+\item {\tt bic}: the Bayesian Information Criterion (minus twice the maximized log-likelihood plus the number of coefficients times log $n$).
+\item {\tt df.residual}: the residual degrees of freedom.
+\item {\tt df.null}: the residual degrees of freedom for the null model. 
+\item {\tt zelig.data}: the input data frame if {\tt save.data = TRUE} 
+
+\end{itemize}
+\item From {\tt summary(z.out)}(as well as from {\tt zelig()}), you may extract:
+\begin{itemize}
+\item {\tt mod.coefficients}: the parameter estimates with their associated standard errors, $p$-values, and $t$ statistics. 
+\item {\tt cov.scaled}: a $k \times k$ matrix of scaled covariances.
+\item {\tt cov.unscaled}: a $k \times k$ matrix of unscaled covariances. 
+\end{itemize}
+\item From the {\tt sim()} output stored in {\tt s.out}, you may extract:
+\begin{itemize}
+\item {\tt qi\$ev}: the simulated expected probabilities for the specified values of {\tt x}.
+\item {\tt qi\$pr}: the simulated predicted values drawn from the distribution defined by $(\mu_i, \sigma^2)$.
+\item {\tt qi\$fd}: the simulated first differences in the expected probabilities simulated from {\tt x} and {\tt x1}.
+\end{itemize}
+\end{itemize}
+
+
+ \subsection* {How to Cite} 
+
+\input{cites/normal.net}
+\input{citeZelig}
+\subsection* {See also}
+The network normal regression is part of the {\tt netglm} package by Skyler J. Cranmer and is built using some of the functionality of the  {\tt sna} package by Carter T. Butts \citep{ButCar01}.In addition, advanced users may wish to refer to {\tt help(normal.net)}. Sample data are fictional. 
+ 
+\bibliographystyle{asa}
+\bibliography{gk,gkpubs}
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+\end{document}

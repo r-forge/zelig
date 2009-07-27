@@ -1,0 +1,306 @@
+\SweaveOpts{results=hide, prefix.string=vigpics/eiDynamic}
+\include{zinput}
+%\VignetteIndexEntry{Quinn's Dynamic Ecological Inference}
+%\VignetteDepends{Zelig}
+%\VignetteKeyWords{model,ecological, contingency tables, Gibbs sampling}
+%\VignettePackage{Zelig}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F,results=hide>>=
+library(Zelig)
+@ 
+
+%%% the following inputs do not work
+%\SweaveInput{ei.hier}
+%\SweaveInput{eiRxC}
+\section{{\tt ei.dynamic}: Quinn's Dynamic Ecological Inference
+Model}\label{ei.dynamic}
+
+Given contingency tables with observed marginals, ecological inference
+({\sc ei}) models estimate each internal cell value for each table.
+Quinn's dynamic {\sc ei} model estimates a dynamic Bayesian model for
+$2 \times 2$ tables with temporal dependence across tables (units).
+The model is implemented using a Markov Chain Monte Carlo algorithm
+(via a combination of slice and Gibbs sampling).  
+For a hierarchical Bayesian implementation of {\sc ei} see Quinn's
+dynamic {\sc ei} model (\Sref{ei.hier}). For contingency tables larger than
+2 rows by 2 columns, see R$\times$C {\sc ei} (\Sref{eiRxC}). 
+
+\subsubsection{Syntax}
+
+\begin{verbatim}
+> z.out <- zelig(cbind(t0, t1) ~ x0 + x1, N = NULL, 
+                 model = "MCMCei.dynamic", data = mydata)
+> x.out <- setx(z.out, fn = NULL, cond = TRUE)
+> s.out <- sim(z.out, x = x.out)
+\end{verbatim}
+
+\subsubsection{Inputs}
+\begin{itemize}
+\item \texttt{t0}, {\tt t1}: numeric vectors (either counts or
+proportions) containing the column margins of the units to be
+analyzed.
+
+\item \texttt{x0}, {\tt x1}: numeric vectors (either counts or
+proportions) containing the row margins of the units to be
+analyzed.
+
+\item \texttt{N}: total counts in each contingency table (unit).  If
+\texttt{t0},\texttt{t1}, \texttt{x0} and \texttt{x1} are proportions,
+you must specify \texttt{N}.
+
+\end{itemize}
+
+\subsubsection{Additional Inputs}
+
+In addition, {\tt zelig()} accepts the following additional inputs for
+\texttt{ei.dynamic} to monitor the convergence of the Markov chain:
+
+\begin{itemize}
+\item \texttt{burnin}: number of the initial MCMC iterations to be 
+ discarded (defaults to 5,000). 
+
+\item \texttt{mcmc}: number of the MCMC iterations after burnin
+(defaults to 50,000).
+
+\item \texttt{thin}: thinning interval for the Markov chain. Only every 
+ \texttt{thin}-th draw from the Markov chain is kept. The value of 
+\texttt{mcmc} must be divisible by this value. The default value is 1.
+
+\item \texttt{verbose}: defaults to {\tt FALSE}.  If \texttt{TRUE}, the progress 
+ of the sampler (every $10\%$) is printed to the screen.
+
+\item \texttt{seed}: seed for the random number generator. The default
+is \texttt{NA} which corresponds to a random seed of 12345. 
+
+\end{itemize}
+
+\noindent The model also accepts the following additional arguments to
+specify priors and other parameters:
+
+\begin{itemize}
+\item \texttt{W}: a $p \times p$ numeric matrix describing the
+structure of the temporal dependence among elements of $\theta_0$ and
+$\theta_1$. The default value is 0, which constructs a weight matrix
+corresponding to random walk priors for $\theta_0$ and $\theta_1$
+(assuming that the tables are equally spaced throughout time, and that
+the elements of \texttt{t0},
+\texttt{t1},\texttt{x0},\texttt{x1} are temporally ordered). 
+
+\item \texttt{a0}: $a_{0}/2$ is the shape parameter for the Inverse Gamma
+prior on $\sigma_{0}^{2}$. The default is 0.825.
+
+\item \texttt{b0}: $b_{0}/2$ is the scale parameter for the Inverse Gamma
+prior on $\sigma_{0}^{2}$. The default is 0.0105.
+
+\item \texttt{a1}: $a_{1}/2$ is the shape parameter for the Inverse Gamma
+prior on $\sigma_{1}^{2}$. The default is 0.825.
+
+\item \texttt{b1}: $b_{1}/2$ is the scale parameter for the Inverse Gamma
+prior on $\sigma_{1}^{2}$. The default is 0.0105.
+\end{itemize}
+
+\noindent Users may wish to refer to \texttt{help(MCMCdynamicEI)} for more options.
+
+\input{coda_diag}
+
+\subsubsection{Examples}
+
+\begin{enumerate}
+ \item Basic examples \\
+ Attaching the example dataset:
+<<Examples.data>>=
+ data(eidat)
+
+@ 
+Estimating the model using \texttt{ei.dynamic}:
+<<Examples.zelig>>=
+ z.out <- zelig(cbind(t0, t1) ~ x0 + x1, model = "ei.dynamic", 
+                 data = eidat,  mcmc = 40000, thin = 10, burnin = 10000, 
+                 verbose = TRUE)
+ summary(z.out)
+@ 
+Setting values for in-sample simulations given the marginal values 
+of {\tt t0}, {\tt t1}, {\tt x0}, and {\tt x1}:
+<<Examples.setx>>=
+ x.out <- setx(z.out, fn = NULL, cond = TRUE)
+@ 
+In-sample simulations from the posterior distribution:
+<<Examples.sim>>=
+s.out <- sim(z.out, x = x.out)
+@ 
+Summarizing in-sample simulations at aggregate level 
+weighted by the count in each unit:
+<<Examples.summary>>=
+ summary(s.out)
+@ 
+Summarizing in-sample simulations at unit level for the first 5 units:
+<<Examples.summary.subset>>=
+ summary(s.out, subset = 1:5)
+@ 
+\end{enumerate}
+\clearpage
+\subsubsection{Model}
+Consider the following $2 \times 2$ contingency table for the racial
+voting example.  For each geographical unit $i = 1, \dots, p$, the
+marginals $t_i^0$, $t_i^1$, $x_i^0$, and $x_i^1$ are known, and we
+would like to estimate $n_i^{00}$, $n_i^{01}$, $n_i^{10}$, and $n_i^{11}$.
+\begin{table}[h!]
+  \begin{center}
+    \begin{tabular}{l|cc|c}
+      & No Vote  & Vote &         \\
+      \hline
+      Black & $n_i^{00}$  & $n_i^{01}$ & $x_i^0$   \\
+      White & $n_i^{10}$  & $n_i^{11}$ & $x_i^1$ \\
+      \hline
+      & $t_i^0$ & $t_i^1$ & $N_i$         
+    \end{tabular}
+  \end{center}
+\end{table}
+
+\noindent The marginal values $x_{i}^0$, $x_{i}^1$, $t_i^0$, $t_i^1$ are
+observed as either counts or fractions. If fractions, the counts can
+be obtained by multiplying by the total counts per table $N_i =
+n_i^{00} + n_i^{01} + n_i^{10} + n_i^{11}$, and rounding to the
+nearest integer.  Although there are four internal cells, only two
+unknowns are modeled since $n_i^{01} = x_i^0 - n_{i}^{00}$ and
+$n_{i}^{11} = s_i^1 - n_{i}^{10}$. \\
+
+The hierarchical Bayesian model for ecological inference in 
+$2 \times 2$ is illustrated as following: 
+\begin{itemize}
+\item The \emph{stochastic component} of the model assumes that
+\begin{eqnarray*}
+n_{i}^{00}\mid x_i^0,\beta_i^b &\sim& \textrm{Binomial}\left(
+x_i^0, \beta_i^b\right)  ,\\
+n_{i}^{10} \mid x_i^1, \beta_i^w &\sim& \textrm{Binomial}\left(
+x_i^1, \beta_i^w\right)  \\
+\end{eqnarray*}
+where $\beta_{i}^{b}$ is the fraction of the black voters who vote
+and $\beta_i^w$ is the fraction of the white voters who vote. $\beta_i^b$ 
+and $\beta_i^w$ as well as their aggregate summaries are the focus
+of inference.
+
+\item The \emph{systematic component} of the model is 
+\begin{eqnarray*}
+\beta_i^b &=& \frac{\exp\theta_i^0}{1 - \exp\theta_i^0} \\
+\beta_i^w &=& \frac{\exp\theta_i^1}{1 - \exp\theta_i^1} 
+\end{eqnarray*}
+The logit transformations of $\beta^b_i$ and $\beta^w_i$, $\theta_{i}^0$, 
+and $\theta_i^1$ now take value on the real line. (Future versions may allow
+$\beta_{i}^{b}$ and $\beta_{i}^{w}$ to be functions of observed covariates.)
+
+\item The \emph{priors} for $\theta_{i}^0$ and $\theta_{i}^1$
+ are given by
+\begin{eqnarray*}
+\theta_{i}^{0}   \mid\sigma_{0}^{2}&\propto & \frac{1}{\sigma_0^{p}} \exp
+\left( -\frac{1}{2\sigma_{0}^2}\theta_0' P \theta_0 \right) \\
+\theta_{i}^{1}   \mid\sigma_{1}^{2}&\propto & \frac{1}{\sigma_1^{p}} \exp
+\left( -\frac{1}{2\sigma_{1}^2}\theta_1' P \theta_1 \right) 
+\end{eqnarray*}
+where $P$ is a $p \times p$ matrix whose off diagonal elements
+$P_{ts}$ ($t \ne s$) equal $-W_{ts}$ (the negative values of the corresponding
+elements of the weight matrix $W$), and diagonal elements 
+$P_{tt}=\sum_{s\ne t} W_{ts}$. Scale parameters $\sigma_{0}^2$ and
+$\sigma_{1}^2$ have hyperprior distributions as given below.  
+
+\item The \emph{hyperpriors} for $\sigma_{0}^{2}$ and $\sigma_{1}^{2}$ are
+given by
+\begin{eqnarray*}
+\sigma_{0}^{2}  & \sim& \textrm{Inverse Gamma}\left(\frac{a_{0}}{2},\frac{b_{0}}{2}\right)  ,\\
+\sigma_{1}^{2}  & \sim& \textrm{Inverse Gamma}\left(\frac{a_{1}}{2},\frac{b_{1}}{2}\right)  ,
+\end{eqnarray*}
+where $a_{0}/2$ and $a_{1}/2$ are the shape parameters of the 
+(independent) Gamma distributions while $b_{0}/2$ and $b_{1}/2$
+ are the scale parameters. \\
+
+The default hyperpriors for $\mu_{0},$ $\mu_{1}$, $\sigma_{0}^{2},$
+and $\sigma_{1}^{2}$ are chosen such that the prior distributions for
+$\beta^b$ and $\beta^w$ are flat.
+
+\end{itemize}
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you may
+view. For example, if you run:
+
+\begin{verbatim}
+> z.out <- (cbind(t0, t1) ~ x0 + x1, N = NULL, 
+          model = "ei.dynamic", data = mydata)
+\end{verbatim}
+ 
+\noindent then you may examine the available information in 
+\texttt{z.out} by using \texttt{names(z.out)}, see the draws from the
+posterior distribution of the quantities of interest by using
+\texttt{z.out\$coefficients}, and view a default summary of
+information through \texttt{summary(z.out)}. Other elements available
+through the \texttt{\$} operator are listed below.
+
+\begin{itemize}
+\item From the \texttt{zelig()} output object \texttt{z.out}, 
+you may extract:
+
+\begin{itemize}
+\item \texttt{coefficients}: draws from the posterior distributions
+of the parameters.
+\item \texttt{data}: the name of the input data frame.
+\item \texttt{N}: the total counts when the inputs are fractions.
+\item \texttt{seed}: the random seed used in the model.
+\end{itemize}
+
+\item From \texttt{summary(z.out)}, you may extract:
+\begin{itemize}
+\item \texttt{summary}: a matrix containing the summary information of the 
+posterior estimation of $\beta^b_i$ and$\beta^w_i$ for each unit and
+the parameters $\mu_0$, $\mu_1$, $\sigma_1$ and $\sigma_2$ based on
+the posterior distribution.  The first $p$ rows correspond to
+$\beta_i^b$, $i=1,\ldots p$, the row names are in the form of
+\texttt{p0table}$i$. The $(p+1)$-th to the $2p$-th rows correspond to
+$\beta_i^w$, $i=1,\ldots,p$. The row names are in the form of
+\texttt{p1table}$i$. The last four rows contain information about
+$\mu_0$, $\mu_1$, $\sigma_0^2$ and $\sigma_1^2$, the prior means and
+variances of $\theta_0$ and $\theta_1$. 
+\end{itemize}
+\item From the \texttt{sim()} output object \texttt{s.out}, you may
+extract quantities of interest arranged as arrays indexed by
+simulation $\times$ column $\times$ row $\times$ observation, where
+column and row refer to the column dimension and the row dimension of
+the ecological table, respectively. In this model, only $2 \times 2$
+contingency tables are analyzed, hence column$=2$ and row$=2$ in all
+cases. Available quantities are:
+\begin{itemize}
+\item \texttt{qi\$ev}: the simulated expected values of each internal
+cell given the observed marginals.
+\item \texttt{qi\$pr}: the simulated expected values of each internal
+cell given the observed marginals.
+\end{itemize}
+
+\end{itemize}
+
+\subsection*{How to Cite}
+\input{cites/ei.dynamic}
+\input{citeZelig}
+\subsection*{See also}
+\emph{ei.dynamic} function is part of the MCMCpack library by Andrew D. Martin and Kevin M. Quinn \citep{MarQui05}.
+The convergence diagnostics are part of the CODA library by Martyn Plummer, Nicky Best, Kate Cowles, and Karen Vines \citep{PluBesCowVin05}. Sample date are adapted from \cite{MarQui05}.
+
+\bibliographystyle{asa}
+\bibliography{gk,gkpubs}
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 

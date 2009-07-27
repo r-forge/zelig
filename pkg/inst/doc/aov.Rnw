@@ -1,0 +1,252 @@
+\SweaveOpts{results=hide,prefix.string=vigpics/aov}
+\include{zinput}
+%\VignetteIndexEntry{Fit an Analysis of Variance Model}
+%\VignetteDepends{Zelig, stats}
+%\VignetteKeyWords{model,continuous,analysis variance, error, multiple responses,sum squares, residual}
+%\VignettePackage{Zelig}
+\begin{document}
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F,results=hide>>=
+pkg <- search()
+if(!length(grep("package:Zelig",pkg)))
+library(Zelig)
+@ 
+
+\section{{\tt aov}: Analysis of Variance for Continuous Dependent Variables} 
+\label{aov}
+
+Model ``aov'' uses least squares regression to estimate the residual
+sum of squares and degrees of freedom for each explanatory variable
+around the best linear predictor for the specified dependent
+variables. Model ``aov'' is particularly useful for the analysis of
+randomized experiments with more than one strata or group (e.g.,
+balanced incomplete block design).  For the model with only one
+strata, ``aov'' reduces to ``ls''.
+
+\subsubsection{Syntax}
+
+\begin{verbatim}
+> z.out <- zelig(Y ~ X1 + X2 + Error(Z), model = "aov", data = mydata)
+> x.out <- setx(z.out)
+> s.out <- sim(z.out, x = x.out)
+\end{verbatim}
+where the {\tt Error()} term is optional and takes strata formula.
+
+\subsubsection{Examples}\begin{enumerate}
+
+\item Basic Example of aov.
+
+Attach sample data and set orthogonal contrasts:
+<<Example1.data>>=
+ data(npk, package="MASS")
+ op <- options(contrasts=c("contr.helmert", "contr.poly"))
+@ 
+Estimate the model \citep[p.165]{VenRip02}:
+<<Example1.zelig>>= 
+ z.out1 <- zelig(yield ~ block + N * P + K, model="aov", data=npk)
+@ 
+Summarize the fitted model:
+<<Example1.summary>>=
+ summary(z.out1)
+@ 
+Set explanatory variables to their default (mean/mode) values
+<<Example1.setx>>=
+ x <- setx(z.out1)
+@ 
+Simulate model at values explanatory variables as in x
+<<Example1.sim>>=
+ s.out1 <- sim(z.out1, x = x)
+@ 
+<<Example1.summary.sim>>= 
+summary(s.out1)
+@ 
+\begin{center}
+<<label=ExamplesPlot1,fig=true,echo=true, width=5,height=2.5>>=  
+ plot(s.out1)
+@ 
+\end{center}
+
+\item Example with {\tt Error()} term allowing for more than one
+  source of random variation in an experiment (multistratum model). 
+
+Estimate the model:
+<<Example2.zelig>>= 
+ z.out2 <- zelig(yield ~  N*P*K + Error(block), model="aov",data=npk)
+@ 
+Summarize regression coefficients:
+<<Example2.summary>>=
+ summary(z.out2)
+@ 
+Set explanatory variables to their default (mean/mode) values
+<<Example2.setx>>=
+ x <- setx(z.out2)
+@ 
+Simulate model at values explanatory variables as in x
+<<Example2.sim>>=
+ s.out2 <- sim(z.out2, x = x)
+@ 
+<<Example2.summary.sim>>= 
+ summary(s.out2)
+@ 
+\begin{center}
+<<label=ExamplesPlot2,fig=true,echo=true, width=5, height=4>>=  
+ plot(s.out2)
+@ 
+\end{center}
+
+\item Example with {\it Error()} term (multistratum model) and first
+  differences. 
+
+Reset to previous contrasts 
+<<Options>>=
+options(op)
+@ 
+Estimate model \citep[p.283]{VenRip02}:
+<<Example3.zelig>>= 
+ z.out3 <- zelig(Y ~ N*V + Error(B/V), model="aov", data=oats)
+@ 
+Summarize regression coefficients:
+<<Example3.summary>>=
+ summary(z.out3)
+@ 
+Set explanatory variables using mode
+<<Example3.setx>>=
+ x.out <- setx(z.out3, N="0.0cwt", V="Golden.rain")
+ x.out1 <- setx(z.out3, N="0.0cwt", V="Victory")
+@ 
+Simulate model at values explanatory variables as in x
+<<Example3.sim>>=
+ s.out3 <- sim(z.out3, x = x.out,x1=x.out1)
+@ 
+<<Example3.summary.sim>>= 
+summary(s.out3)
+@ 
+\begin{center}
+<<label=ExamplesPlot3,fig=true,echo=true, width=8, height=6>>=  
+ plot(s.out3)
+@ 
+\end{center}
+
+\end{enumerate}
+
+\subsubsection{Model}
+\begin{itemize}
+\item The \emph{stochastic component} is described by a normal density
+  with mean $\mu_i$ and the common variance $\sigma^2$
+  \begin{equation*}
+    Y_i \; \sim \; f(y_i \mid \mu_i, \sigma^2).
+  \end{equation*}
+\item The \emph{systematic component} models the conditional mean as
+  \begin{equation*}
+     \mu_i =  x_i \beta
+  \end{equation*} 
+  where $x_i$ is the vector of covariates, and $\beta$ is the vector
+  of coefficients.
+  
+  The least squares estimator is the best linear predictor of a
+  dependent variable given $x_i$, and minimizes the sum of squared
+  residuals, $\sum_{i=1}^n (Y_i-x_i \beta)^2$. The output of {\tt aov}
+  model is the sum  of squared residuals. Note that {\tt aov} is the
+  same model as {\tt ls} but the output values of function call   
+  {\tt zelig} are different. You may check that {\tt name(z.out)}
+  returns the same arguments for the two models.    
+\end{itemize}
+
+\subsubsection{Quantities of Interest} 
+\begin{itemize}
+\item The expected value ({\tt qi\$ev}) is the mean of simulations
+  from the stochastic component,  
+\begin{equation*}
+E(Y) = x_i \beta,\end{equation*}
+given a draw of $\beta$ from its sampling distribution.  
+
+\item In conditional prediction models, the average expected treatment
+  effect ({\tt att.ev}) for the treatment group is 
+    \begin{equation*} \frac{1}{\sum_{i=1}^n t_i}\sum_{i:t_i=1}^n \left\{ Y_i(t_i=1) -
+      E[Y_i(t_i=0)] \right\},
+    \end{equation*} 
+    where $t_i$ is a binary explanatory variable defining the treatment
+    ($t_i=1$) and control ($t_i=0$) groups.  Variation in the
+    simulations are due to uncertainty in simulating $E[Y_i(t_i=0)]$,
+    the counterfactual expected value of $Y_i$ for observations in the
+    treatment group, under the assumption that everything stays the
+    same except that the treatment indicator is switched to $t_i=0$.
+
+\end{itemize}
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you
+may view.  For example, if you run \texttt{z.out <- zelig(y \~\,
+  x, model = "aov", data)}, then you may examine the available
+information in \texttt{z.out} by using \texttt{names(z.out)},
+see the {\tt coefficients} by using {\tt z.out\$coefficients}, and
+a default summary of information through \texttt{summary(z.out)}.
+Other elements available through the {\tt \$} operator are listed
+below.
+
+\begin{itemize}
+  \item From the {\tt zelig()} output object {\tt z.out}, you may
+  extract:
+   \begin{itemize}
+   \item {\tt coefficients}: parameter estimates for the explanatory
+     variables.
+   \item {\tt residuals}: the working residuals in the final iteration
+     of the IWLS fit.
+   \item {\tt fitted.values}: fitted values.
+   \item {\tt df.residual}: the residual degrees of freedom.
+   \item {\tt zelig.data}: the input data frame if {\tt save.data = TRUE}.  
+   \end{itemize}
+  
+\item From {\tt summary(z.out)}, you may extract:
+   \begin{itemize}
+   \item {\tt coefficients}: the residuals sum of squares estimated
+     with their associated degree of freedom, their mean squares,
+     $F$-values, and $F$-statistics for all explanatory variables.
+    
+   \item {\tt residuals}: the sum of square, mean, degree of freedom,
+     $F$-values, and $F$-statistics for the vector of residuals or
+     standard errors that check the adequecy of the fit for the
+     dependent variable versus the true values or data points.
+   
+   \end{itemize}
+   
+\item From the {\tt sim()} output object {\tt s.out}, you may extract
+  quantities of interest arranged as matrices indexed by simulation
+  $\times$ {\tt x}-observation (for more than one {\tt x}-observation).
+  Available quantities are:
+
+   \begin{itemize}
+   \item {\tt qi\$ev}: the simulated expected values for the specified
+     values of {\tt x}.
+   \item {\tt qi\$fd}:  the simulated first differences (or
+     differences in expected values) for the specified values of {\tt
+       x} and {\tt x1}. 
+   \item {\tt qi\$att.ev}: the simulated average expected treatment
+     effect for the treated from conditional prediction models.  
+   \end{itemize}
+\end{itemize}
+
+
+\subsection* {How to Cite} 
+\input{cites/aov}
+\input{citeZelig}
+
+\subsection* {See also}
+The analysis of variance model is part of the stats package by William
+N. Venables and Brian D. Ripley \citep{VenRip02}.  In addition,
+advanced users may wish to refer to \texttt{help(aov)} and
+\texttt{help(lm)}. 
+
+\bibliographystyle{asa}
+\bibliography{gk,gkpubs}
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}

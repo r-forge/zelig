@@ -1,0 +1,32 @@
+\subsubsection{Convergence}
+
+Users should verify that the Markov Chain converges to its stationary 
+distribution.  After running the \texttt{zelig()} function but before 
+performing \texttt{setx()}, users may conduct the following 
+convergence diagnostics tests:
+
+\begin{itemize}
+\item \texttt{geweke.diag(z.out\$coefficients)}: The Geweke diagnostic tests
+the null hypothesis that the Markov chain is in the stationary distribution
+and produces z-statistics for each estimated parameter. 
+ 
+\item \texttt{heidel.diag(z.out\$coefficients)}: The Heidelberger-Welch
+diagnostic first tests the null hypothesis that the Markov Chain is in the
+stationary distribution and produces p-values for each estimated parameter. 
+ Calling \texttt{heidel.diag()} also produces
+output that indicates whether the mean of a marginal posterior distribution
+can be estimated with sufficient precision, assuming that the Markov Chain is
+in the stationary distribution.
+
+\item \texttt{raftery.diag(z.out\$coefficients)}: The Raftery diagnostic
+indicates how long the Markov Chain should run before considering draws from
+the marginal posterior distributions sufficiently representative of the
+stationary distribution.
+\end{itemize}
+
+\noindent If there is evidence of non-convergence, adjust the values 
+for \texttt{burnin} and \texttt{mcmc} and rerun \texttt{zelig()}.
+
+Advanced users may wish to refer to \texttt{help(geweke.diag)}, 
+\texttt{help(heidel.diag)}, and \texttt{help(raftery.diag)} for more 
+information about these diagnostics. 
