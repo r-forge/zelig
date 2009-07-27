@@ -1,0 +1,297 @@
+\SweaveOpts{results=hide, prefix.string=vigpics/tobitBayes}
+\include{zinput}
+%\VignetteIndexEntry{Bayesian Linear Regression for a Censored Dependent Variable}
+%\VignetteDepends{Zelig, MCMCpack}
+%\VignetteKeyWords{model, linear,bayes,regression,censored,continuous}
+%\VignettePackage{Zelig}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F,results=hide>>=
+library(Zelig)
+@
+
+\section{\texttt{tobit.bayes}: Bayesian Linear Regression for a
+Censored Dependent Variable} \label{tobit.bayes}
+
+Bayesian tobit regression estimates a linear regression model with a
+censored dependent variable using a Gibbs sampler.  The dependent
+variable may be censored from below and/or from above.  For other
+linear regression models with fully observed dependent variables, see
+Bayesian regression (\Sref{normal.bayes}), maximum likelihood normal
+regression (\Sref{normal}), or least squares (\Sref{ls}).
+
+\subsubsection{Syntax}
+\begin{verbatim}
+> z.out <- zelig(Y ~ X1 + X2, below = 0, above = Inf, 
+                  model = "tobit.bayes", data = mydata)
+> x.out <- setx(z.out)
+> s.out <- sim(z.out, x = x.out)
+\end{verbatim}
+
+\subsubsection{Inputs}
+{\tt zelig()} accepts the following arguments to specify how the
+dependent variable is censored.
+\begin{itemize}
+\item \texttt{below}: point at which the dependent variable is censored
+from below. If the dependent variable is only censored from above, set 
+\texttt{below = -Inf}. The default value is 0.
+\item \texttt{above}: point at which the dependent variable is censored
+from above. If the dependent variable is only censored from below, set 
+\texttt{above = Inf}. The default value is \texttt{Inf}.
+\end{itemize}
+
+\subsubsection{Additional Inputs}
+
+Use the following arguments to monitor the convergence of the Markov
+chain:  
+\begin{itemize}
+\item \texttt{burnin}: number of the initial MCMC iterations to be 
+ discarded (defaults to 1,000).
+
+\item \texttt{mcmc}: number of the MCMC iterations after burnin
+(defaults to 10,000).
+
+\item \texttt{thin}: thinning interval for the Markov chain. Only every 
+ \texttt{thin}-th draw from the Markov chain is kept. The value of
+\texttt{mcmc} must be divisible by this value. The default value is 1.
+
+\item \texttt{verbose}: defaults to {\tt FALSE}.  If \texttt{TRUE},
+the progress of the sampler (every $10\%$) is printed to the screen.
+
+\item \texttt{seed}: seed for the random number generator. The default is 
+\texttt{NA} which corresponds to a random seed of 12345. 
+
+\item \texttt{beta.start}: starting values for the Markov 
+chain, either a scalar or vector with length equal to the number 
+of estimated coefficients. The default is \texttt{NA}, such that the
+least squares estimates are used as the starting values.  
+
+\end{itemize}
+
+Use the following parameters to specify the model's priors:  
+\begin{itemize}
+\item \texttt{b0}: prior mean for the coefficients, either a numeric
+vector or a scalar. If a scalar, that value will be the prior mean for
+all coefficients. The default is 0.
+
+\item \texttt{B0}: prior precision parameter for the coefficients,
+either a square matrix (with the dimensions equal to the number of the
+coefficients) or a scalar. If a scalar, that value times an identity
+matrix will be the prior precision parameter. The default is 0, which
+leads to an improper prior.
+
+\item \texttt{c0}: \texttt{c0/2} is the shape parameter for the Inverse Gamma
+prior on the variance of the disturbance terms. 
+
+\item \texttt{d0}: \texttt{d0/2} is the scale parameter for the Inverse Gamma
+prior on the variance of the disturbance terms. 
+
+\end{itemize}
+
+Zelig users may wish to refer to \texttt{help(MCMCtobit)} for more 
+information.
+
+\input{coda_diag}
+
+\subsubsection{Examples}
+
+\begin{enumerate}
+\item {Basic Example} \\
+Attaching the sample  dataset:
+<<Examples.data>>=
+ data(tobin)
+@ 
+Estimating linear regression using \texttt{tobit.bayes}:
+<<Examples.zelig>>=
+ z.out <- zelig(durable ~ age + quant, model = "tobit.bayes",
+                  data = tobin, verbose=TRUE)
+@ 
+Checking for convergence before summarizing the estimates:
+<<Examples.geweke>>=
+ geweke.diag(z.out$coefficients)
+@ 
+<<Examples.heidel>>= 
+heidel.diag(z.out$coefficients)
+@ 
+<<Examples.raftery>>= 
+raftery.diag(z.out$coefficients)
+@ 
+<<Examples.summary>>= 
+summary(z.out)
+@ 
+Setting values for the explanatory variables to their sample averages:
+<<Examples.setx>>=
+ x.out <- setx(z.out)
+@ 
+Simulating quantities of interest from the posterior distribution given 
+\texttt{x.out}.
+<<Examples.sim>>=
+ s.out1 <- sim(z.out, x = x.out)
+@ 
+<<Examples.summary.sim>>= 
+summary(s.out1)
+@ 
+\item {Simulating First Differences} \\
+Set explanatory variables to their default(mean/mode) values, with high
+(80th percentile) and low (20th percentile) liquidity ratio (\texttt{quant}):
+
+<<FirstDifferences.setx>>=
+ x.high <- setx(z.out, quant = quantile(tobin$quant, prob = 0.8))
+ x.low <- setx(z.out, quant = quantile(tobin$quant, prob = 0.2))
+@ 
+Estimating the first difference for the effect of
+high versus low liquidity ratio on duration(\texttt{durable}):
+<<FirstDifferences.sim>>=
+ s.out2 <- sim(z.out, x = x.high, x1 = x.low)
+@ 
+<<FirstDifferences.summary>>= 
+summary(s.out2)
+@ 
+\end{enumerate}
+
+\subsubsection{Model}
+Let $Y_i^*$ be the dependent variable which is not directly observed. Instead,
+we observe $Y_i$ which is defined as following:
+\begin{equation*}
+Y_i = \left\{
+\begin{array}{lcl}
+Y_i^*  &\textrm{if} & c_1<Y_i^*<c_2 \\
+c_1    &\textrm{if} & c_1 \ge Y_i^* \\
+c_2    &\textrm{if} & c_2 \le Y_i^*
+\end{array}\right.
+\end{equation*}
+where $c_1$ is the lower bound below which $Y_i^*$ is censored, and
+$c_2$ is the upper bound above which $Y_i^*$ is censored.
+
+\begin{itemize}
+\item The \emph{stochastic component} is given by 
+\begin{eqnarray*} 
+\epsilon_{i}  &  \sim & \textrm{Normal}(0, \sigma^2)
+\end{eqnarray*} 
+where $\epsilon_{i}=Y^*_i-\mu_i$. 
+
+\item The \emph{systematic component} is given by
+\begin{eqnarray*}
+\mu_{i}= x_{i} \beta,
+\end{eqnarray*}
+where $x_{i}$ is the vector of $k$ explanatory variables for
+observation $i$ and $\beta$ is the vector of coefficients.
+
+\item The \emph{semi-conjugate priors} for $\beta$ and $\sigma^2$ are
+given by 
+\begin{eqnarray*} 
+\beta & \sim & \textrm{Normal}_k \left( b_{0},B_{0}^{-1}\right) \\
+\sigma^{2} & \sim & \textrm{InverseGamma} \left( \frac{c_0}{2}, \frac{d_0}{2}
+\right) 
+\end{eqnarray*}
+where $b_{0}$ is the vector of means for the $k$ explanatory
+variables, $B_{0}$ is the $k\times k$ precision matrix (the inverse of
+a variance-covariance matrix), and $c_0/2$ and $d_0/2$ are the shape
+and scale parameters for $\sigma^{2}$.  Note that $\beta$ and
+$\sigma^2$ are assumed \emph{a priori} independent.
+\end{itemize}
+
+\subsubsection{Quantities of Interest}
+
+\begin{itemize}
+\item The expected values (\texttt{qi\$ev}) for the tobit regression model is
+calculated as following.  Let
+\begin{eqnarray*}
+\Phi_1 &=& \Phi\left(\frac{(c_1 - x \beta)}{\sigma}\right) \\
+\Phi_2 &=& \Phi\left(\frac{(c_2 - x \beta)}{\sigma}\right) \\ 
+\phi_1 &=& \phi\left(\frac{(c_1 - x \beta)}{\sigma}\right) \\
+\phi_2 &=& \phi\left(\frac{(c_2 - x \beta)}{\sigma}\right) 
+\end{eqnarray*}
+where $\Phi(\cdot)$ is the (cumulative) Normal density function and
+$\phi(\cdot)$ is the Normal probability density function of the
+standard normal distribution.  Then the expected values are
+\begin{eqnarray*}
+E(Y|x) &=& P(Y^* \le c_1|x) c_1+P(c_1<Y^*<c_2|x) E(Y^* \mid c_1<Y^*<c_2, x)+P(Y^* \ge c_2) c_2 \\
+   &=& \Phi_{1}c_1 + x \beta(\Phi_{2}-\Phi_{1}) + \sigma (\phi_1 -\phi_2) + (1-\Phi_2) c_2,
+\end{eqnarray*}
+
+\item The first difference (\texttt{qi\$fd}) for the tobit regression
+model is defined as
+\begin{eqnarray*}
+\text{FD}=E(Y\mid x_{1})-E(Y\mid x).
+\end{eqnarray*}
+
+\item In conditional prediction models, the average expected treatment effect
+(\texttt{qi\$att.ev}) for the treatment group is
+\begin{eqnarray*}
+\frac{1}{\sum t_{i}}\sum_{i:t_{i}=1}[Y_{i}(t_{i}=1)-E[Y_{i}(t_{i}=0)]],
+\end{eqnarray*}
+where $t_{i}$ is a binary explanatory variable defining the treatment
+($t_{i}=1$) and control ($t_{i}=0$) groups. 
+
+\end{itemize}
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you may
+view. For example, if you run:
+\begin{verbatim}
+z.out <- zelig(y ~ x, model = "tobit.bayes", data)
+\end{verbatim}
+
+\noindent then you may examine the available information in \texttt{z.out} by
+using \texttt{names(z.out)}, see the draws from the posterior distribution of
+the \texttt{coefficients} by using \texttt{z.out\$coefficients}, and view a 
+default summary of information through \texttt{summary(z.out)}. Other elements
+available through the \texttt{\$} operator are listed below.
+
+\begin{itemize}
+\item From the \texttt{zelig()} output object \texttt{z.out}, you may extract:
+
+\begin{itemize}
+\item \texttt{coefficients}: draws from the posterior distributions
+of the estimated parameters. The first $k$ columns contain the posterior draws
+of the coefficients $\beta$, and the last column contains the posterior draws 
+of the variance $\sigma^2$.
+
+   \item {\tt zelig.data}: the input data frame if {\tt save.data = TRUE}.  
+\item \texttt{seed}: the random seed used in the model.
+
+\end{itemize}
+
+\item From the \texttt{sim()} output object \texttt{s.out}:
+
+\begin{itemize}
+\item \texttt{qi\$ev}: the simulated expected value for the specified
+values of \texttt{x}.
+
+\item \texttt{qi\$fd}: the simulated first difference in the expected
+values given the values specified in \texttt{x} and \texttt{x1}.
+
+\item \texttt{qi\$att.ev}: the simulated average expected treatment effect
+for the treated from conditional prediction models.
+
+\end{itemize}
+\end{itemize}
+
+\subsection* {How to Cite} 
+
+\input{cites/tobit.bayes}
+\input{citeZelig}
+\subsection*{See also}
+Bayesian tobit regression is part of the MCMCpack library by Andrew D. Martin and Kevin M. Quinn \citep{MarQui05}. The convergence diagnostics are part of the CODA library by Martyn Plummer, Nicky Best, Kate Cowles, and Karen Vines \citep{PluBesCowVin05}.
+
+\bibliographystyle{asa}
+\bibliography{gk,gkpubs}
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

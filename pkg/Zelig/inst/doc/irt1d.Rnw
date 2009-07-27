@@ -1,0 +1,287 @@
+\SweaveOpts{results=hide, prefix.string=vigpics/irt1d}
+\include{zinput}
+%\VignetteIndexEntry{ One Dimensional Item Response Mode}
+%\VignetteDepends{Zelig, MCMCpack}
+%\VignetteKeyWords{model,item response,dichotomous, Gibbs}
+%\VignettePackage{Zelig, stats}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F,results=hide>>=
+library(Zelig)
+@ 
+
+\section{\texttt{irt1d}: One Dimensional Item Response Model}
+
+\label{irt1d}
+
+Given several observed dependent variables and an unobserved
+explanatory variable, item response theory estimates the latent
+variable (ideal points).  The model is estimated using the Markov
+Chain Monte Carlo algorithm via a Gibbs sampler and data augmentation.
+Use this model if you believe that the ideal points lie in one
+dimension, and see the $k$-dimensional item response model
+(\Sref{irtkd}) for $k$ hypothesized latent variables.
+
+\subsubsection{Syntax}
+\begin{verbatim}
+> z.out <- zelig(cbind(Y1, Y2, Y3) ~ NULL, model = "irt1d", data = mydata)
+\end{verbatim}
+
+\subsubsection{Inputs}
+\texttt{irt1d} accepts the following argument:
+\begin{itemize}
+\item \texttt{Y1, Y2}, and \texttt{Y3}: \texttt{Y1} contains the items for 
+subject ``Y1'', \texttt{Y2} contains the items for subject ``Y2'', and
+so on.
+\end{itemize}
+
+\subsubsection{Additional arguments}
+
+\texttt{irt1d} accepts the following additional arguments for model specification:
+
+\begin{itemize}
+\item \texttt{theta.constraints}: a list specifying possible equality
+or inequality constraints on the ability parameters $\theta$.  A
+typical entry takes one of the following forms:  
+
+\begin{itemize}
+
+\item {\tt varname = list()}: by default, no constraints are
+imposed.
+
+\item \texttt{varname = c}:  constrains the ability parameter for the subject named 
+\texttt{varname} to be equal to \texttt{c}. 
+
+\item \texttt{varname = "+"}: constrains the ability parameter for the subject named 
+\texttt{varname} to be positive. 
+
+\item \texttt{varname = "-"}: constrains the ability parameter for the
+subject named {\tt varname} to be negative.
+
+\end{itemize}
+\end{itemize} 
+
+The model also accepts the following arguments to monitor the sampling
+scheme for the Markov chain:
+
+\begin{itemize}
+\item \texttt{burnin}: number of the initial MCMC iterations to be 
+ discarded (defaults to 1,000).
+
+\item \texttt{mcmc}: number of the MCMC iterations after burnin
+(defaults to 20,000).
+
+\item \texttt{thin}: thinning interval for the Markov chain. Only every 
+ \texttt{thin}-th draw from the Markov chain is kept. The value of 
+\texttt{mcmc} must be divisible by this value. The default value is 1.
+
+\item \texttt{verbose}: defaults to {\tt FALSE}. If \texttt{TRUE}, the progress 
+ of the sampler (every $10\%$) is printed to the screen. 
+
+\item \texttt{seed}: seed for the random number generator. The default
+is \texttt{NA} which corresponds to a random seed 12345.
+
+\item \texttt{theta.start}: starting values for the subject abilities
+(ideal points), either a scalar or a vector with length equal to the
+number of subjects. If a scalar, that value will be the starting value
+for all subjects. The default is \texttt{NA}, which sets the starting
+values based on an eigenvalue-eigenvector decomposition of the
+agreement score matrix formed from the model response matrix
+(\texttt{cbind(Y1, Y2, ...)}).
+
+\item \texttt{alpha.start}: starting values for the difficulty
+parameters $\alpha$, either a scalar or a vector with length equal to
+the number of the items. If a scalar, the value will be the starting
+value for all $\alpha$. The default is \texttt{NA}, which sets the
+starting values based on a series of probit regressions that condition
+on \texttt{theta.start}.
+
+\item \texttt{beta.start}: starting values for the $\beta$ discrimination
+parameters, either a scalar or a vector with length equal to the
+number of the items. If a scalar, the value will be the starting value
+for all $\beta$. The default is \texttt{NA}, which sets the starting
+values based on a series of probit regressions conditioning on
+\texttt{theta.start}.
+
+\item \texttt{store.item}: defaults to {\tt TRUE}, storing the
+posterior draws of the item parameters.  (For a large number of draws or
+a large number observations, this may take a lot of memory.)  
+
+\item \texttt{drop.constant.items}: defaults to {\tt TRUE}, dropping
+items with no variation before fitting the model.  
+
+\end{itemize}
+
+\noindent \texttt{irt1d} accepts the following additional arguments to 
+specify prior parameters used in the model:
+
+\begin{itemize}
+
+\item \texttt{t0}: prior mean of the subject abilities
+(ideal points). The default is 0.
+
+\item \texttt{T0}: prior precision of the subject abilities
+(ideal points). The default is 0.
+
+\item \texttt{ab0}: prior mean of $(\alpha, \beta)$. It can be a scalar or
+a vector of length 2. If it takes a scalar value, then the prior means for
+both $\alpha$ and $\beta$ will be set to that value. The default is 0. 
+
+\item \texttt{AB0}: prior precision of $(\alpha, \beta)$. It can be 
+a scalar or a $2 \times 2$ matrix. If it takes a scalar value, 
+then the prior precision will be \texttt{diag(AB0,2)}. The prior precision
+is assumed to be same for all the items. The default is 0.25.
+
+\end{itemize}
+
+Zelig users may wish to refer to \texttt{help(MCMCirt1d)} for more 
+information.
+
+\input{coda_diag}
+
+\subsubsection{Examples}
+
+\begin{enumerate}
+\item {Basic Example} \\
+Attaching the sample  dataset:
+<<Example.data>>=
+ data(SupremeCourt)
+names(SupremeCourt) <- c("Rehnquist","Stevens","OConnor","Scalia",
+                         "Kennedy","Souter","Thomas","Ginsburg","Breyer")
+
+@ 
+Fitting a one-dimensional item response theory model using \texttt{irt1d}:
+<<Example.zelig>>=
+ z.out <- zelig(cbind(Rehnquist, Stevens, OConnor, Scalia, Kennedy,
+                       Souter, Thomas, Ginsburg, Breyer) ~ NULL,
+               data = SupremeCourt, model = "irt1d",
+               B0.alpha = 0.2, B0.beta = 0.2, burnin = 500, mcmc = 10000,
+               thin = 20, verbose = TRUE)
+@ 
+
+Checking for convergence before summarizing the estimates:
+<<Example.geweke>>=
+ geweke.diag(z.out$coefficients)
+@ 
+<<Example.heidel>>= 
+heidel.diag(z.out$coefficients)
+@ 
+<<Example.summary>>=
+ summary(z.out)
+@ 
+\end{enumerate}
+
+\subsubsection{Model}
+
+Let $Y_i$ be a vector of choices on $J$ items made by subject $i$ for
+$i=1, \ldots, n$. The choice $Y_{ij}$ is assumed to be determined by
+an unobserved utility $Z_{ij}$, which is a function of the subject $i$'s
+abilities (ideal points) $\theta_i$ and item parameters $\alpha_j$ and
+$\beta_j$ as follows:  
+\begin{eqnarray*}
+Z_{ij} &=& -\alpha_j + \beta_j' \theta_i + \epsilon_{ij}.
+\end{eqnarray*}
+
+\begin{itemize}
+\item The \emph{stochastic component} is given by
+\begin{eqnarray*}
+Y_{ij}  &  \sim & \textrm{Bernoulli}(\pi_{ij}) \\
+& = & \pi_{ij}^{Y_{ij}}(1-\pi_{ij})^{1-Y_{ij}},
+\end{eqnarray*}
+where $\pi_{ij}=\Pr(Y_{ij}=1)=E(Z_{ij})$.
+
+The error term in the unobserved utility equation is independently
+and identically distributed with 
+\begin{eqnarray*}
+\epsilon_{ij} \sim \textrm{Normal}(0, 1).
+\end{eqnarray*}
+
+\item The \emph{systematic component} is given by
+
+\begin{eqnarray*}
+\pi_{ij}= \Phi(-\alpha_j + \beta_j' \theta_i),
+\end{eqnarray*}
+where $\Phi(\cdot)$ is the cumulative density function of the standard
+normal distribution with mean 0 and variance 1, $\theta_i$ is the
+subject ability (ideal point) parameter, and $\alpha_j$ and $\beta_j$
+are the item parameters. Both subject abilities and item parameters
+are estimated from the model, such that the model is identified by
+placing constraints on the subject ability parameters.
+
+\item The \emph{prior} for $\theta_i$ is given by
+\begin{eqnarray*}
+\theta_i &\sim& \textrm{Normal} \left(  t_{0},T_{0}^{-1}\right)
+\end{eqnarray*}
+
+\item The joint \emph{prior} for $\alpha_j$ and $\beta_j$ is given by
+\begin{eqnarray*}
+(\alpha_j, \beta_j)' &\sim& \textrm{Normal}\left(  ab_{0},AB_{0}^{-1}\right)
+\end{eqnarray*}
+where $ab_0$ is a 2-vector of prior means and $AB_0$ is a $2 \times 2$ prior
+precision matrix.
+
+\end{itemize}
+ 
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you may
+view. For example, if you run:
+\begin{verbatim}
+z.out <- zelig(cbind(Y1, Y2, Y3) ~ NULL, model = "irt1d", data)
+\end{verbatim}
+\noindent then you may examine the available information in \texttt{z.out} by
+using \texttt{names(z.out)}, see the draws from the posterior distribution of
+the \texttt{coefficients} by using \texttt{z.out\$coefficients}, and view 
+a default summary of information through \texttt{summary(z.out)}. 
+Other elements available through the \texttt{\$} operator are listed below.
+
+\begin{itemize}
+
+\item From the \texttt{zelig()} output object \texttt{z.out}, you may extract:
+
+\begin{itemize}
+\item \texttt{coefficients}: draws from the posterior distributions
+of the estimated subject abilities(ideal points). If
+\texttt{store.item = TRUE}, the estimated item parameters $\alpha$ and
+$\beta$ are also contained in \texttt{coefficients}.
+
+\item \texttt{data}: the name of the input data frame.
+\item \texttt{seed}: the random seed used in the model.   
+
+\end{itemize}
+
+\item Since there are no explanatory variables, the \texttt{sim()}
+procedure is not applicable for item response models.
+
+\end{itemize}
+
+\subsection*{How to Cite}
+
+\input{cites/irt1d}
+\input{citeZelig}
+\subsection*{See also}
+The unidimensional item-response function is part of the MCMCpack
+library by Andrew D. Martin and Kevin M. Quinn \citep{MarQui05}.  The
+convergence diagnostics are part of the CODA library by Martyn
+Plummer, Nicky Best, Kate Cowles, and Karen Vines
+\citep{PluBesCowVin05}. Sample data are adapted from \cite{MarQui05}.
+
+\bibliographystyle{asa}
+\bibliography{gk,gkpubs}
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

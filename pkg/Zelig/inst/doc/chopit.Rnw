@@ -1,0 +1,386 @@
+\SweaveOpts{eval=false, results=hide, prefix.string=vigpics/chopit}
+\include{zinput}
+%\VignetteIndexEntry{Compound Hierarchical Ordered Probit for Survey Vignettes}
+%\VignetteDepends{Zelig, stats}
+%\VignetteKeyWords{model,chopit,anchors,regression}
+%\VignettePackage{Zelig}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F,results=hide>>=
+library(Zelig)
+@ 
+
+\section{{\tt chopit}: Compound Hierarchical Ordered Probit for Survey
+Vignettes}
+\label{chopit}
+
+The Compound Hierarchical Ordered Probit ({\sc chopit}) model corrects
+for ``differential item functioning'' or ``interpersonal
+comparability'' in ordinal survey responses.  Given a self-assessment
+question (such as, ``How healthy are you?  Excellent, good, fair, or
+poor.''), different respondents may interpret the response categories
+in different ways, such that excellent health to one individual may be
+fair health to a hypochondriac.  For each ordinal self-assessment to be
+corrected, the {\sc chopit} model requires one or more vignette
+question (such as a description of a hypothetical person's health,
+followed by the same response categories as the self-assessment), and
+a set of associated explanatory variables for the respondent.  The key
+assumption of the approach is that the thresholds (which determine how
+respondents translate their views into the response categories) have
+the same effect for different questions asked of the same respondent,
+but may differ across respondents; the model uses
+a parametric specification to predict the thresholds associated with an
+individual.  The self-assessment and vignette questions may be taken
+from different surveys, so long as both surveys include the same
+explanatory variable questions to predict the thresholds.  For ordinal
+data (without vignettes), see \Sref{oprobit}, \Sref{ologit}, and
+\Sref{oprobit.bayes}.  
+
+\subsubsection{Syntax}
+
+\begin{verbatim}
+> fml <- list(self = Y ~ X1 + X2, 
+              vign = cbind(Z1, Z2, Z3) ~ 1, 
+              tau  = ~ X1 + X2)
+> z.out <- zelig(fml, data = list(self = data1, vign = data2), 
+                 model = "chopit")
+> x.out <- setx(z.out)
+> s.out <- sim(z.out, x = x.out, x1 = NULL)
+\end{verbatim}
+
+\subsubsection{Inputs}
+
+In this hierarchical model, the {\tt formula} and {\tt data} inputs to
+{\tt zelig()} are lists with the following structure:  
+\begin{itemize}
+\item The {\tt formula} is a list with three {\tt formula} objects
+corresponding to:  
+\begin{itemize}
+\item {\tt self}:  Specifies the self-response question ({\tt Y}) as a function
+of a set of explanatory variables. 
+\item {\tt vign}:  Specifies the vignette questions on the left-hand
+side as a matrix in the form {\tt cbind(Z1, Z2, Z3)}.  
+\item {\tt tau}:  Specifies explanatory variables that constrain the cut points
+across both the vignette and self-response questions.  These
+explanatory variables do not necessarily need to overlap with the set
+of explanatory variables specified in the {\tt self} formula, but must
+be observed in both the {\tt vign} and {\tt self} data frames,
+described below. 
+\end{itemize}
+\item The {\tt data} argument is a list of two data frames with
+\begin{itemize}
+\item {\tt self}:  A data frame containing the self-response
+question(s) specified in the {\tt self} formula and associated
+explanatory variables listed in the {\tt self} and {\tt tau} formulas.
+\item {\tt vign}:  A data frame containing the vignette questions
+specified in the {\tt vign} formula and associated explanatory
+variables listed in the {\tt tau} formula.
+\end{itemize}
+\end{itemize}  
+
+\subsubsection{Additional Inputs} 
+
+In addition to the standard inputs, {\tt zelig()} takes many
+additional options for compound hierarchical ordered probit
+regression, see {\tt help(chopit)} and \cite{WanKinLau07} for details.
+
+\subsubsection{Examples}
+\begin{enumerate}
+\item {Basic Example}
+
+Setting up the formula as a list for the self-response, vignettes, and
+the cut points (drawn from both the self-response and vignette data sets).
+<<<Example.formula>>=
+formula <- list(self = y ~ sex + age + educ + factor(country),
+                vign = cbind(v1, v2, v3, v4, v5) ~ 1,
+                tau  = ~ sex + age + educ + factor(country))
+@ 
+Attaching the sample data sets.  The {\tt free1} data correspond to
+the self-response data, and the {\tt free2} data correspond to the
+vignette subset.  Note that the variables specified in the {\tt tau}
+formula must be in both data sets.
+<<<Examples.library, echo=false>>=
+  if(is.na(match("anchors",.packages()))){
+    message("Loading package anchors...")
+    library(anchors)
+    }
+@
+<<Example.sample>>=
+data(free1, free2)
+@ 
+<<Example.data>>=
+data <- list(self = free1, vign = free2)
+@ 
+Estimating parameter values for the {\sc chopit} regression:
+<<Example.zelig>>=
+ z.out <- zelig(formula,  data = data, model = "chopit") 
+@ 
+Setting values for the explanatory variables to their default values:
+<<Example.setx>>=
+ x.out1 <- setx(z.out)
+@ 
+Simulating quantities of interest from the sampling distribution.
+<<Example.sim>>=
+ s.out1 <- sim(z.out, x = x.out1)
+@
+<<Example.summary>>= 
+ summary(s.out1)
+@ 
+
+\item {Simulating First Differences}
+
+Estimate the first difference in expected values between the average
+age (about 40 years old) and a 25 year old individual, with the other
+explanatory variables held at their default values:
+<<FirstDifferences.setx>>=
+ x.out2 <- setx(z.out, age = 25)
+@ 
+<<FirstDifferences.sim>>=
+ s.out2 <- sim(z.out, x = x.out1, x1 = x.out2)
+@ 
+<<FirstDifferences.summary>>=
+ summary(s.out2)
+@
+
+\item {Conditional prediction}  
+
+Conditional prediction generates expected values that are conditional
+on the observed self-response.  
+<<Conditional.setx>>=
+x.out3 <- setx(z.out, cond = TRUE)
+@
+Since conditional prediction involves numeric integration, the
+procedure takes approximately one second per observation in {\tt
+x.out3} on 64-bit R. 
+<<Conditional.sim>>=
+s.out3 <- sim(z.out, x = x.out3)
+@ 
+<<Conditional.summary>>=
+summary(s.out3)
+@ 
+\end{enumerate}
+
+\subsubsection{Model}
+
+This model has two sets of response variables, one for the
+self-assessment and one for the vignettes.  Let $Y_i$ be the observed
+ordinal self-assessment for respondents $i = 1, \dots, n$, and
+$Z_{lj}$ be the ordinal vignette responses for individuals $l = 1,
+\dots, L$ in the vignette subset for $j = 1, \dots, J$ vignette
+questions, such that both $\{Y_i, Z_{lj} \}$ take integer values $k
+= 1, \dots, K$ corresponding to the same ordinal assessment response categories.
+
+\begin{itemize}
+\item The \emph{stochastic components} are described by unobserved continuous
+  variables, $Y_i^*$ and $Z_{lj}^*$, which follows normal
+  distributions with mean $\mu_i$ and variance $\sigma^2$ in
+  the case of $Y_i^*$, and mean $\theta_j$ and variance
+  $\sigma_j^2$ in the case of each $Z_{lj}^*$.  Using the default
+identification mechanism, the variance $\sigma^2$ for the
+self-assessment is fixed to 1.  Thus, 
+\begin{eqnarray*}
+ Y_i^* & \sim & N(\mu_i, 1)\\
+ Z_{lj}^* & \sim& N(\theta_j, \sigma_j^2)
+\end{eqnarray*}
+such that each vignette response $j$ has a scalar mean $\theta_j$ and
+variance $\sigma_j^2$ that does not vary over observations
+$l$.  In cases where more than one self-response was administered to the same subject, an additional random effect may be included in
+the distribution of the latent $Y_i^*$ in the form
+\begin{eqnarray*}
+ Y_i^* & \sim & N(\mu_i, 1 + \omega^2)\\
+\end{eqnarray*}
+where the variance term is obtained via the proof described in
+Appendix A of \cite{KinMurSal04}.
+
+The observation mechanisms that divide the continuous $\{ Y_i^*,
+Z_{lj}^* \}$ into the discrete $\{ Y_i, Z_{lj} \}$ are
+\begin{eqnarray*}
+ Y_i & = & k \quad {\rm if} \quad \tau_{i}^{k-1} \le Y_i^* \le \tau_{i}^{k}
+    \; {\rm for} \; k = 1,\dots, K \\
+ Z_{lj} & = & k \quad {\rm if} \quad \tau_{l}^{k-1} \le Z_{lj}^* \le \tau_{l}^{k}
+    \; {\rm for} \; k = 1,\dots, K 
+\end{eqnarray*}
+where the threshold parameters $\tau$ vary over individuals $\{i, l
+\}$, but are subject to the following constraints within each
+individual: $\tau^p < \tau^q$ for all $p < q$ and $\tau_0=-\infty$ and
+$\tau_K=\infty$.
+
+\item There are three \emph{systematic components} in the model.  
+\begin{itemize}
+
+\item For the self-assessment component, let
+\begin{eqnarray*}
+\mu_i &=& x_i \beta 
+\end{eqnarray*}
+where $x_i$ is the vector of $q$ explanatory variables for observation $i$,
+and $\beta$ is the associated vector of coefficients.
+
+\item In addition, the threshold parameters also vary over individuals
+in the self-assessment component as follows
+\begin{eqnarray*}
+\tau_{i}^{1} &=& v_i \gamma^1 \\
+\tau_{i}^{k} &=& \tau_{i}^{k-1} + \exp(v_i \gamma^k) \; {\rm for} \;
+k = 2, \dots, K
+\end{eqnarray*}
+where $v_i$ is the vector of $p$ explanatory variables for observation
+$i$, and $\gamma^k$ for $k = 1, \dots, K$ are the vectors of
+coefficients associated with each categorical response.  Thus, the
+threshold parameters vary over individuals since $v_i$ vary, and over
+response categories since the $\gamma^k$ vary over the threshold
+parameters.  
+
+\item Similarly, the threshold parameters vary over individuals in the
+vignette component as follows
+\begin{eqnarray*}
+\tau_{l}^{1} &=& v_l \gamma^1 \\
+\tau_{l}^{k} &=& \tau_{l}^{k-1} + \exp(v_l \gamma^k) \; {\rm for} \;
+k = 2, \dots, K
+\end{eqnarray*}
+where $v_l$ is a vector of $p$ explanatory variables for observation
+$l$ in the vignette subset, and $\gamma^k$ are restricted to be the
+same $\gamma^k$ used to parameterize the threshold parameters for the
+self-assessment component.
+\end{itemize}
+As \cite{KinMurSal04} note, the interpersonal comparability of
+responses (or response consistency) is achieved by constraining
+$\gamma^k$ to be the same in both the self-assessment and vignette
+components of the model.  Note that the variables included in $v_i$ and
+$v_l$ are the same, but the observed values of those variables differ across
+the vignette and self-response samples.
+\end{itemize}
+
+
+\subsubsection{Quantities of Interest}
+
+\begin{itemize}
+\item The expected value ({\tt qi\$ev}) for the {\sc chopit} model
+is the expected value of the posterior density for the systematic
+component $\mu_i$,
+\begin{equation*}
+\textrm{EV} \; = \; E(\mu_i \mid x_i) \; = \; x_i \beta
+\end{equation*}
+given draws of $\beta$ from its sampling distribution.  
+
+\item The first difference is the difference in the expected value of
+the posterior density for the systematic component $\mu_i$ given $x_1$
+and $x_0$:
+\begin{equation*}
+\textrm{FD} = E(\mu_i \mid x_1) - E(\mu_i \mid x_0).
+\end{equation*}
+
+\item In conditional prediction models, the conditional expected
+values ({\tt qi\$cev}) are the expected value of the distribution of
+$\mu_i$ conditional on the observed self-assessment response $Y_i$, 
+%%This quantity is calculated in two steps.  First, using draws of
+%%$\gamma^k$ for $k = 1, \dots, K$ from their posterior distributions,
+%%we calculate simulations of the threshold parameters
+%%\begin{eqnarray*}
+%%\tau_i^1 &=& v_i \gamma^1 \\
+%%\tau_i^k &=& \tau_i^{k-1} + \exp(v_i \gamma^k) \; {\rm for} \; k = 2, \dots, K.
+%%\end{eqnarray*}
+%%Next, we use adaptive integration to calculate the expected value of
+%%the posterior distribution conditional on $Y_i$:  
+%%\begin{eqnarray*}
+%%E(\mu_i \mid x_i, Y_i) &=& \int \mu_i P(\mu_i \mid \tau_i, \beta, x_i,
+%%Y_i) d \mu_i
+%%\end{eqnarray*}
+where
+\begin{eqnarray*}
+P(\mu_i \mid \tau_i, \beta, x_i, Y_i) &=& \prod_{k=1}^K [ \Phi(\tau_i^k -
+\mu_i) - \Phi(\tau_i^{k-1} - \mu_i) ] \times N(x_i \beta, x_i
+\widehat{V}(\widehat{\beta}) x_i^{\prime} + \widehat{\omega}^2)
+\end{eqnarray*}
+given the simulations of the threshold parameters calculated above,
+draws of $\beta$ from its sampling distribution, and the
+estimated variance-covariance matrix for $\widehat{\beta}$.
+
+\end{itemize}
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you
+may view.  For example, if you run \texttt{z.out <- zelig(\dots,
+  model = "chopit")}, then you may examine the available
+information in \texttt{z.out} by using \texttt{names(z.out)},
+see the estimated parameters by using {\tt z.out\$par}, and
+a default summary of information through \texttt{summary(z.out)}.
+Other elements available through the {\tt \$} operator are listed
+below.
+
+\begin{itemize}
+\item From the {\tt zelig()} output object {\tt z.out}, you may
+  extract:
+   \begin{itemize}
+     \item {\tt par}: the maximum likelihood parameter estimates for
+$\widehat{\gamma}^k$ for $k = 1, \dots, K$ response categories,
+log($\widehat{\omega}$) (if estimated), log($\widehat{\sigma}$) (if
+estimated), log($\widehat{\sigma_j}$) for $j = 1, \dots, J$ vignette
+questions, $\widehat{\theta_j}$, and $\widehat{\beta}$.
+\item {\tt chopit.hessian}:  the estimated Hessian matrix, with rows
+and columns corresponding to the elements in {\tt par}.    
+\item {\tt value}: the value of the log-likelihood at its maximum
+\item {\tt counts}:  the number of function and gradient calls to
+reach the maximum.
+\item {\tt formula}: the formula for {\tt self}, {\tt vign}, and {\tt
+tau} selected by the user.
+\item {\tt call}:  the call to {\tt zelig()}.  
+\item {\tt \dots}:  additional outputs described in {\tt
+help(chopit)}.  
+   \end{itemize}
+
+\item Typing {\tt summary(z.out)} provides a useful summary of the
+output from {\tt zelig()}, but no items can be extracted.  
+
+\item From the {\tt sim()} output object {\tt s.out}, you may extract
+  quantities of interest arranged as matrices indexed by simulation
+  $\times$ {\tt x}-observation (for more than one {\tt x}-observation).
+  Available quantities are:
+
+   \begin{itemize}
+   \item {\tt qi\$ev}: the simulated expected values for the
+     specified values of {\tt x}.
+   \item {\tt qi\$fd}: the simulated first difference in the expected
+     values for the values specified in {\tt x} and {\tt x1}.
+   \item {\tt qi\$cev}: the simulated conditional expected value given
+{\tt x}.  
+   \end{itemize}
+\end{itemize}
+
+\subsection* {How to Cite} 
+
+\input{cites/chopit}
+\input{citeZelig}
+
+\subsection* {See also}
+The {\sc chopit} model is part of the anchors package by Jonathan
+Wand, Gary King, and Olivia Lau \citep{WanKinLau07}. Advanced users
+may wish to refer to \texttt{help(chopit)}, as well as
+\cite{KinMurSal04} and \cite{KinWan07}. 
+
+\bibliographystyle{asa}
+\bibliography{gk,gkpubs}
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 
+
+
+
+
+
+
+
+
+

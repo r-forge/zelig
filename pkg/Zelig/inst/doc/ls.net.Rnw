@@ -1,0 +1,193 @@
+\SweaveOpts{results=hide, prefix.string=vigpics/lsnet, eval=true}
+\include{zinput}
+%\VignetteIndexEntry{Network Least Squares Regression for Continuous Proximity Matrix Dependent Variables}
+%\VignetteDepends{Zelig}
+%\VignetteKeyWords{model, network,least squares, regression,continuous, proximity matrix}
+%\VignettePackage{Zelig}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F>>=
+pkg <- search()
+
+if(!length(grep("package:Zelig",pkg)))
+library(Zelig)
+@
+
+\section{{\tt ls.net}: Network Least Squares Regression for Continuous Proximity Matrix Dependent Variables}
+\label{ls.net}
+
+Use network least squares regression analysis to estimate the
+best linear predictor when the dependent variable is a
+continuously-valued proximity matrix (a.k.a.\ sociomatrices, adjacency
+matrices, or matrix representations of directed graphs). 
+
+\subsubsection{Syntax}
+\begin{verbatim}
+> z.out <- zelig(y ~  x1 + x2, model = "ls.net", data = mydata)
+> x.out <- setx(z.out)
+> s.out <- sim(z.out, x = x.out)
+\end{verbatim}
+
+\subsubsection{Examples}
+\begin{enumerate}
+\item Basic Example with First Differences 
+
+Load sample data and format it for social networkx analysis:
+%library sna required 
+<<Examples.data>>=
+ data(sna.ex)
+@ 
+<<Examples.library, echo=false>>=
+if(is.na(match("sna",.packages()))){
+message("Loading package sna...")
+library(sna)
+}
+@ 
+Estimate model:
+<<Examples.zelig>>=
+ z.out <- zelig(Var1 ~ Var2 + Var3 + Var4, model = "ls.net", data = sna.ex)
+
+@ 
+
+Summarize regression results:
+<<Examples.summary>>=
+ summary(z.out)
+@ 
+
+Set explanatory variables to their default (mean/mode) values, with
+high (80th percentile) and low (20th percentile) for the second
+explanatory variable (Var3).
+<<Examples.setx>>=
+ x.high <- setx(z.out, Var3 = quantile(sna.ex$Var3, 0.8))
+ x.low <- setx(z.out, Var3 = quantile(sna.ex$Var3, 0.2))
+@ 
+Generate first differences for the effect of high versus low values of
+Var3 on the outcome variable.
+<<Examples.sim>>=
+ try(s.out <- sim(z.out, x = x.high, x1 = x.low))
+ try(summary(s.out))
+@ 
+\begin{center}
+<<label=ExamplesPlot, fig=true, echo=true>>=
+ plot(s.out)
+@ 
+\end{center}
+\end{enumerate}
+
+\subsubsection{Model}
+The {\tt ls.net} model performs a least squares regression of the
+sociomatrix $\mathbf{Y}$, a $m \times m$ matrix representing network
+ties, on a set of sociomatrices $\mathbf{X}$. This network regression
+model is a directly analogue to standard least squares regression
+element-wise on the appropriately vectorized matrices. Sociomatrices
+are vectorized by creating $Y$, an $m^{2} \times 1$ vector to
+represent the sociomatrix. The vectorization which produces the $Y$
+vector from the $\mathbf{Y}$ matrix is preformed by simple
+row-concatenation of $\mathbf{Y}$. For example if $\mathbf{Y}$ is a
+$15 \times 15$ matrix, the $\mathbf{Y}_{1,1}$ element is the first
+element of $Y$, and the $\mathbf{Y}_{21}$ element is the second
+element of $Y$ and so on. Once the input matrices are vectorized,
+standard least squares regression is performed. As such:
+\begin{itemize}
+\item The \emph{stochastic component} is described by a density with
+mean $\mu_{i}$ and the common variance $\sigma^{2}$ 
+\begin{equation*}
+Y_{i} \sim f(y_{i} | \mu_{i}, \sigma^{2}).
+\end{equation*}
+
+\item The \emph{systematic component} models the conditional mean as
+\begin{equation*}
+\mu_{i} = x_{i}\beta
+\end{equation*}
+where $x_{i}$ is the vector of covariates, and $\beta$ is the vector of coefficients.
+\end{itemize}
+The least squares estimator is the best linear predictor of a
+dependent variable given $x_{i}$, and minimizes the sum of squared
+errors $\sum_{i = 1}^{n} (Y_{i} - x_{i}\beta)^{2}$.
+
+\subsubsection{Quantities of Interest}
+The quantities of interest for the network least squares regression
+are the same as those for the standard least squares regression.
+\begin{itemize}
+\item The expected value ({\tt qi\$ev}) is the mean of simulations from
+the stochastic component, 
+\begin{equation*}
+E(Y) = x_{i}\beta,
+\end{equation*}
+given a draw of $\beta$ from its sampling distribution.
+
+\item The first difference ({\tt qi\$fd}) is:
+\begin{equation*}
+FD = E(Y | x_{1}) - E(Y | x)
+\end{equation*}
+\end{itemize}
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you
+may view. For example, you run {\tt z.out <- zelig(y ~ x,
+model="ls.net", data)}, then you may examine the available information
+in {\tt z.out} by using {\tt names(z.out)}, see the coefficients by
+using {\tt z.out\$coefficients}, and a default summary of information
+through {\tt summary(z.out)}. Other elements available through the
+{\tt \$} operator are listed below. 
+\begin{itemize}
+\item From the {\tt zelig()} output stored in {\tt z.out}, you may extract:
+\begin{itemize}
+\item {\tt coefficients}: parameter estimates for the explanatory variables.
+\item {\tt fitted.values}: the vector of fitted values for the explanatory variables.
+\item {\tt residuals}: the working residuals in the final iteration of the IWLS fit. 
+\item {\tt df.residual}: the residual degrees of freedom.
+\item {\tt zelig.data}: the input data frame if {\tt save.data = TRUE}
+\end{itemize}
+
+\item From {\tt summary(z.out)}, you may extract:
+\begin{itemize}
+\item {\tt mod.coefficients}: the parameter estimates with their associated standard errors, $p$-values, and $t$ statistics. 
+\begin{equation*}
+\hat{\beta} = \left( \sum_{i = 1}^{n} x'_{i}x_{i}  \right)^{-1} \sum x_{i}y_{i}
+\end{equation*}
+\item {\tt sigma}: the square root of the estimate variance of the
+random error $\varepsilon$:
+\begin{equation*}
+\hat{\sigma} = \frac{\sum (Y_{i} - x_{i} \hat{\beta} ) ^{2}}{n - k}
+\end{equation*}
+\item {\tt r.squared}: the fraction of the variance explained by the model.
+\begin{equation*}
+R^{2} = 1 - \frac{\sum (Y_{i} - x_{i} \hat{\beta} ) ^{2}}{\sum (y_{i}
+- \bar{y})^{2}}
+\end{equation*}
+\item {\tt adj.r.squared}: the above $R^{2}$ statistic, penalizing for
+an increased number of explanatory variables.  
+\item {\tt cov.unscaled}: a $k \times k$ matrix of unscaled covariances. 
+\end{itemize}
+
+\item From the {\tt sim()} output stored in {\tt s.out}, you may extract:
+\begin{itemize}
+\item {\tt qi\$ev}: the simulated expected values for the specified values of {\tt x}.
+\item {\tt qi\$fd}: the simulated first differences (or differences in
+expected values) for the specified values of {\tt x} and {\tt x1}.
+\end{itemize}
+\end{itemize}
+
+\subsection* {How to Cite} 
+
+\input{cites/ls.net}
+\input{citeZelig}
+\subsection* {See also}
+The network least squares regression is part of the sna package by
+Carter T. Butts \citep{ButCar01}.In addition, advanced users may wish to refer to {\tt help(netlm)}.
+
+\bibliographystyle{asa}
+\bibliography{gk,gkpubs}
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}

@@ -1,0 +1,299 @@
+\SweaveOpts{results=hide, prefix.string=vigpics/factorMix}
+\include{zinput}
+%\VignetteIndexEntry{Mixed Data Factor Analysis}
+%\VignetteDepends{Zelig, MCMCpack}
+%\VignetteKeyWords{model,mixed, factors latent, continuous, ordinal,Gibbs}
+%\VignettePackage{Zelig}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F,results=hide>>=
+library(Zelig)
+@ 
+\
+\section{\texttt{factor.mix}: Mixed Data Factor Analysis}\label{factor.mix}
+
+Mixed data factor analysis takes both continuous and ordinal dependent
+variables and estimates a model for a given number of latent factors.
+The model is estimated using a Markov Chain Monte Carlo algorithm
+(Gibbs sampler with data augmentation).  Alternative models include
+Bayesian factor analysis for continuous variables
+(\Sref{factor.bayes}) and Bayesian factor analysis for ordinal
+variables (\Sref{factor.ord}).  
+
+\subsubsection{Syntax}
+\begin{verbatim}
+> z.out <- zelig(cbind(Y1 ,Y2, Y3) ~ NULL, factors = 1, 
+                model = "factor.mix", data = mydata)
+\end{verbatim}
+
+\subsubsection{Inputs}
+{\tt zelig()} accepts the following arguments for {\tt factor.mix}:  
+\begin{itemize}
+
+\item \texttt{Y1}, {\tt Y2}, \texttt{Y3}, {\tt \dots}: The dependent variables of
+interest, which can be a mix of ordinal and continuous variables.  You
+must have more dependent variables than factors.
+
+\item \texttt{factors}: The number of the factors to be fitted.
+
+\end{itemize}
+
+
+\subsubsection{Additional Inputs}
+
+The model accepts the following additional arguments to monitor
+convergence:  
+\begin{itemize}
+\item \texttt{lambda.constraints}: A list that contains the equality or 
+inequality constraints on the factor loadings. 
+
+\begin{itemize}
+
+\item {\tt varname = list()}: by default, no constraints are
+imposed.
+
+\item \texttt{varname = list(d, c)}: constrains the
+$d$th loading for the variable named \texttt{varname} to be equal to \texttt{c}.
+
+\item \texttt{varname = list(d, "+")}: constrains the
+$d$th loading for the variable named \texttt{varname} to be positive;
+
+\item \texttt{varname = list(d, "-")}: constrains the
+$d$th loading for the variable named \texttt{varname} to be negative.
+\end{itemize} 
+Unlike Bayesian factor analysis for continuous variables
+(\Sref{factor.bayes}), the first column of $\Lambda$ corresponds to
+negative item difficulty parameters and should not be constrained in
+general.
+
+\item \texttt{std.mean}: defaults to {\tt TRUE}, which rescales the
+continuous manifest variables to have mean 0.  
+
+\item \texttt{std.var}: defaults to {\tt TRUE}. which rescales the
+continuous manifest variables to have unit variance.  
+\end{itemize}
+
+
+\noindent \texttt{factor.mix} accepts the following additional arguments 
+to monitor the sampling scheme for the Markov chain:
+
+\begin{itemize}
+\item \texttt{burnin}: number of the initial MCMC iterations to be 
+ discarded. The default value is 1,000.
+
+\item \texttt{mcmc}: number of the MCMC iterations after burnin.
+ The default value is 20,000.
+
+\item \texttt{thin}: thinning interval for the Markov chain. Only every 
+ \texttt{thin}-th draw from the Markov chain is kept. The value of 
+\texttt{mcmc} must be divisible by this value. The default value is 1.
+
+\item \texttt{tune}: tuning parameter, which can be either a
+scalar or a vector of length $K$. The value of the tuning parameter
+must be positive. The default value is \texttt{1.2}.
+
+\item \texttt{verbose}: defaults to {\tt FALSE}. If \texttt{TRUE}, the progress 
+ of the sampler (every $10\%$) is printed to the screen. The default 
+is \texttt{FALSE}.
+
+\item \texttt{seed}: seed for the random number generator. The default
+is \texttt{NA} which corresponds to a random seed 12345.
+
+\item \texttt{lambda.start}: starting values of the factor loading
+matrix $\Lambda$ for the Markov chain, either a scalar (starting
+values of the unconstrained loadings will be set to that value), or a
+matrix with compatible dimensions.  The default is \texttt{NA}, where
+the start values for the first column of $\Lambda$ are set based on
+the observed pattern, while for the rest of the columns of $\Lambda$,
+the start values are set to be 0 for unconstrained factor loadings,
+and 1 or $-$1 for constrained factor loadings (depending on the nature
+of the constraints).
+
+\item \texttt{psi.start}: starting values for the diagonals of the error variance
+(uniquenesses) matrix. Since the starting values for the ordinal
+variables are constrained to 1 (to identify the model), you may only
+specify the starting values for the continuous variables.  For the
+continuous variables, you may specify {\tt psi.start} as a scalar or a
+vector with length equal to the number of continuous variables.  If a
+scalar, that starting value is recycled for all continuous variables.
+If a vector, the starting values should correspond to each of the
+continuous variables.  The default value is \texttt{NA}, which means
+the starting values of all the continuous variable uniqueness are set
+to 0.5.
+
+\item \texttt{store.lambda}: defaults to {\tt TRUE}, storing the
+posterior draws of the factor loadings.  
+
+\item \texttt{store.scores}: defaults to {\tt FALSE}.  If {\tt TRUE},
+the posterior draws of the factor scores are stored. (Storing factor
+scores may take large amount of memory for a a large number of draws
+or observations.)
+
+\end{itemize}
+Use the following additional arguments to specify prior parameters used in the model:
+\begin{itemize}
+
+\item \texttt{l0}: mean of the Normal prior for the factor
+loadings, either a scalar or a matrix with the same dimensions as
+$\Lambda$.  If a scalar value, then that value will be the prior mean
+for all the factor loadings. The default value is 0.
+
+\item \texttt{L0}: precision parameter of Normal prior for the factor
+loadings, either a scalar or a matrix with the same dimensions as $\Lambda$.  
+If a scalar value, then the precision matrix will be 
+a diagonal matrix with the diagonal elements set to that value. 
+The default value is 0 which leads to an improper prior.
+
+\item \texttt{a0}: {\tt a0/2} is the shape parameter of the Inverse Gamma priors for 
+the uniquenesses. It can take a scalar value or a vector. The default
+value is 0.001.
+
+\item \texttt{b0}: {\tt b0/2} is the shape parameter of the Inverse Gamma priors for 
+the uniquenesses. It can take a scalar value or a vector. The default
+value is 0.001.
+
+\end{itemize}
+Zelig users may wish to refer to \texttt{help(MCMCmixfactanal)} for more 
+information.
+
+\input{coda_diag}
+
+\subsubsection{Examples}
+\begin{enumerate}
+\item {Basic Example} \\
+Attaching the sample  dataset:
+<<Examples.data>>=
+ data(PErisk)
+@ 
+Factor analysis for mixed data using \texttt{factor.mix}:
+<<Examples.zelig>>=
+ z.out<-zelig(cbind(courts, barb2, prsexp2, prscorr2, gdpw2) ~ NULL, 
+               data = PErisk, model = "factor.mix", factors = 1,  
+               burnin = 5000, mcmc = 100000, thin = 50, verbose = TRUE, 
+               L0 = 0.25, tune=1.2)
+@ 
+
+Checking for convergence before summarizing the estimates:
+<<Examples.geweke>>=
+ geweke.diag(z.out$coefficients)
+@ 
+<<Examples.heidel>>=
+ heidel.diag(z.out$coefficients)
+@ 
+<<Examples.summary>>=
+ summary(z.out)
+@ 
+
+\end{enumerate}
+
+\subsubsection{Model}
+
+Let $Y_i$ be a $K$-vector of observed variables for observation $i$, 
+The $k$th variable can be either continuous or ordinal. When $Y_{ik}$ is an
+ordinal variable, it takes value from 1 to $J_k$ for $k=1,\ldots, K$ and for 
+$i =1, \ldots, n$. The distribution of $Y_{ik}$ is assumed to be 
+governed by another $K$-vector of unobserved continuous variable $Y_{ik}^*$. 
+There are $d$ underlying factors. When $Y_{ik}$ is continuous, we let 
+$Y_{ik}^*=Y_{ik}$.
+
+\begin{itemize}
+\item The \emph{stochastic component} is described in terms of $Y_i^*$:
+\begin{eqnarray*}
+Y_{i}^*  &\sim& \textrm{Normal}_K (\mu_i, I_K),
+\end{eqnarray*}
+where $Y_i^*=(Y_{i1}^*, \ldots, Y_{iK}^*)$, and $\mu_i=(\mu_{i1},\ldots, \mu_{iK})$.
+
+For ordinal $Y_{ik}$,
+\begin{eqnarray*}
+Y_{ik} = j \quad {\rm if} \quad \gamma_{(j-1),k} \le Y_{ik}^* \le
+\gamma_{jk} \quad \textrm{ for } \quad j=1,\ldots, J_k; k=1,\ldots, K.
+\end{eqnarray*}
+where $\gamma_{jk}, j=0,\ldots, J$ are the threshold parameters for the $k$th
+variable with the following constraints, $\gamma_{lk} < \gamma_{mk}$ for $l < m$, and $\gamma_{0k}=-\infty, \gamma_{J_k k}=\infty$ for any $k=1, \ldots, K$.
+It follows that the probability of observing $Y_{ik}$ belonging to category 
+$j$ is,
+\begin{eqnarray*}
+\Pr(Y_{ik}=j) &=&\Phi(\gamma_{jk} \mid \mu_{ik})-\Phi(\gamma_{(j-1),k} \mid \mu_{ik}) \quad 
+\textrm{ for } j=1,\ldots,J_k
+\end{eqnarray*}
+where $\Phi(\cdot\mid\mu_{ik})$ is the cumulative distribution function of the 
+Normal distribution with mean $\mu_{ik}$ and variance 1.
+
+\item The \emph{systematic component} is given by,
+\begin{eqnarray*}
+\mu_i &=& \Lambda\phi_i,
+\end{eqnarray*}
+where $\Lambda$ is a $K \times d$ matrix of factor loadings for each variable,
+$\phi_i$ is a $d$-vector of factor scores for observation $i$. Note both 
+$\Lambda$ and $\phi$ are estimated.. 
+
+\item The independent conjugate \emph{prior} for each $\Lambda_{ij}$  is given by
+\begin{eqnarray*}
+\Lambda_{ij} &\sim& \textrm{Normal}(l_{0_{ij}}, L_{0_{ij}}^{-1}) 
+\textrm{ for } i=1,\ldots, k; \quad j=1,\ldots, d.
+\end{eqnarray*}
+
+\item The \emph{prior} for $\phi_i$ is,
+\begin{eqnarray*}
+\phi_{i} \sim \textrm{Normal}(0, I_{d-1}), \quad {\rm for} \quad i=2, \ldots, n.
+\end{eqnarray*}
+where $I_{d-1}$ is a $ (d-1) \times (d-1) $ identity matrix. Note the
+first element of $\phi_i$ is 1. 
+\end{itemize}
+
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you may
+view. For example, if you run:
+\begin{verbatim}
+z.out <- zelig(cbind(Y1, Y2, Y3), model = "factor.mix", data)
+\end{verbatim}
+
+\noindent then you may examine the available information in \texttt{z.out} by
+using \texttt{names(z.out)}, see the draws from the posterior distribution of
+the \texttt{coefficients} by using \texttt{z.out\$coefficients}, and view a default
+summary of information through \texttt{summary(z.out)}. Other elements
+available through the \texttt{\$} operator are listed below.
+
+\begin{itemize}
+\item From the \texttt{zelig()} output object \texttt{z.out}, you may extract:
+
+\begin{itemize}
+\item \texttt{coefficients}: draws from the posterior distributions
+of the estimated factor loadings, the estimated cut points $\gamma$ for each
+variable. Note the first element of $\gamma$ is normalized to be 0. If 
+\texttt{store.scores = TRUE}, the estimated factors scores are also contained in 
+\texttt{coefficients}.
+
+   \item {\tt zelig.data}: the input data frame if {\tt save.data = TRUE}.  
+\item \texttt{seed}: the random seed used in the model.   
+
+\end{itemize}
+
+\item Since there are no explanatory variables, the \texttt{sim()} procedure is
+not applicable for factor analysis models.
+
+\end{itemize}
+
+\subsection* {How to Cite} 
+
+\input{cites/factor.mix}
+\input{citeZelig}
+
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

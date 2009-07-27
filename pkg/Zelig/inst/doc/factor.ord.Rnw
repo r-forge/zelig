@@ -1,0 +1,276 @@
+\SweaveOpts{results=hide, prefix.string=vigpics/factorOrd}
+\include{zinput}
+%\VignetteIndexEntry{Ordinal Data Factor Analysis}
+%\VignetteDepends{Zelig, MCMCpack}
+%\VignetteKeyWords{model,factors latent, ordinal,Gibbs}
+%\VignettePackage{Zelig}
+\begin{document}
+\nobibliography*
+<<beforepkgs, echo=FALSE>>=
+ before=search()
+@
+
+<<loadLibrary, echo=F,results=hide>>=
+library(Zelig)
+@ 
+\section{\texttt{factor.ord}: Ordinal Data Factor Analysis}
+\label{factor.ord}
+
+Given some unobserved explanatory variables and observed ordinal
+dependent variables, this model estimates latent factors using a Gibbs
+sampler with data augmentation.  For factor analysis for continuous
+data, see \Sref{factor.bayes}.  For factor analysis for mixed data
+(including both continuous and ordinal variables), see
+\Sref{factor.mix}.
+
+\subsubsection{Syntax}
+\begin{verbatim}
+> z.out <- zelig(cbind(Y1 ,Y2, Y3) ~ NULL, factors = 1, 
+                model = "factor.ord", data = mydata)
+\end{verbatim}
+
+\subsubsection{Inputs}
+{\tt zelig()} accepts the following arguments for {\tt factor.ord}:  :
+\begin{itemize}
+\item \texttt{Y1, Y2}, and \texttt{Y3}: variables of interest in
+factor analysis (manifest variables), assumed to be ordinal
+variables. The number of manifest variables must be greater than the
+number of the factors.
+
+\item \texttt{factors}: number of the factors to be fitted (defaults
+to 1).
+\end{itemize}
+
+\subsubsection{Additional Inputs}
+
+In addition, {\tt zelig()} accepts the following arguments for model
+specification:  
+\begin{itemize}
+\item \texttt{lambda.constraints}: list that contains the equality or 
+inequality constraints on the factor loadings. A typical entry in the list
+has one of the following forms: 
+\begin{itemize}
+\item {\tt varname = list()}: by default, no constraints are imposed.
+\item \texttt{varname = list(d, c)}: constrains the
+$d$th loading for the variable named \texttt{varname} to be equal to \texttt{c};
+\item \texttt{varname = list(d, "+")}: constrains the
+$d$th loading for the variable named \texttt{varname} to be positive;
+\item \texttt{varname = list(d, "-")}: constrains the
+$d$th loading for the variable named \texttt{varname} to be negative. 
+\end{itemize}
+%Unlike \texttt{factanal} the $\Lambda$ matrix 
+%has \texttt{factors+1} columns. 
+The first column of $\Lambda$ should not be constrained in general.
+
+\item \texttt{drop.constantvars}: defaults to {\tt TRUE}, dropping the
+manifest variables that have no variation before fitting the model. 
+
+\end{itemize}
+
+The model accepts the following arguments to monitor the convergence
+of the Markov chain:  
+\begin{itemize}
+\item \texttt{burnin}: number of the initial MCMC iterations to be 
+ discarded (defaults to 1,000).
+
+\item \texttt{mcmc}: number of the MCMC iterations after burnin
+(defaults to 20,000).
+
+\item \texttt{thin}: thinning interval for the Markov chain. Only every 
+ \texttt{thin}-th draw from the Markov chain is kept. The value of
+\texttt{mcmc} must be divisible by this value. The default value is 1.
+
+\item \texttt{tune}: tuning parameter for Metropolis-Hasting sampling,
+either a scalar or a vector of length $K$. The value of the tuning
+parameter must be positive. The default value is 1.2.
+
+\item \texttt{verbose}: defaults to {\tt FALSE}. If \texttt{TRUE}, the
+progress of the sampler (every $10\%$) is printed to the screen.
+
+\item \texttt{seed}: seed for the random number generator. The 
+default is \texttt{NA} which corresponds to a random seed 12345. 
+
+\item \texttt{Lambda.start}: starting values of the factor loading
+matrix $\Lambda$ for the Markov chain, either a scalar (all
+unconstrained loadings are set to that value), or a matrix with
+compatible dimensions.  The default is {\tt NA}, such that the start
+values for the first column are set based on the observed pattern,
+while the remaining columns have start values set to 0 for
+unconstrained factor loadings, and -1 or 1 for constrained loadings
+(depending on the nature of the constraints).  
+
+\item \texttt{store.lambda}: defaults to {\tt TRUE}, which stores the
+posterior draws of the factor loadings.  
+
+\item \texttt{store.scores}: defaults to {\tt FALSE}.  If {\tt TRUE},
+stores the posterior draws of the factor scores.  (Storing factor
+scores may take large amount of memory for a a large number of draws
+or observations.)
+
+\end{itemize}
+
+Use the following parameters to specify the model's priors:  
+\begin{itemize}
+\item \texttt{l0}: mean of the Normal prior for the factor
+loadings, either a scalar or a matrix with the same dimensions as
+$\Lambda$.  If a scalar value, that value will be the prior mean for
+all the factor loadings. Defaults to 0.
+
+\item \texttt{L0}: precision parameter of the Normal prior 
+for the factor loadings, either a scalar or a matrix with the same
+dimensions as $\Lambda$.  If \texttt{L0} takes a scalar value, then
+the precision matrix will be a diagonal matrix with the diagonal
+elements set to that value. The default value is 0, which leads to an
+improper prior.
+\end{itemize}
+
+Zelig users may wish to refer to \texttt{help(MCMCordfactanal)} for more 
+information.
+
+\input{coda_diag}
+
+\subsubsection{Examples}
+
+\begin{enumerate}
+\item {Basic Example} \\
+Attaching the sample  dataset:
+<<Examples.data>>=
+ data(newpainters)
+@ 
+
+Factor analysis for ordinal data using \texttt{factor.ord}:
+<<Examples.zelig>>=
+ z.out <- zelig(cbind(Composition,Drawing,Colour,Expression)~NULL,
+                    data=newpainters, model="factor.ord",
+                    factors=1, L0=0.5,
+                    burin=5000,mcmc=30000, thin=5, tune=1.2,verbose=TRUE)
+                    
+@ 
+Checking for convergence before summarizing the estimates:
+<<Examples.geweke>>=
+ geweke.diag(z.out$coefficients)
+@ 
+<<Examples.heidel>>=
+ heidel.diag(z.out$coefficients)
+@ 
+<<Examples.raftery>>=
+ raftery.diag(z.out$coefficients)
+@ 
+<<Examples.summary>>=
+ summary(z.out) 
+@ 
+
+
+\end{enumerate}
+
+\subsubsection{Model}
+
+Let $Y_i$ be a vector of $K$ observed ordinal variables for
+observation $i$, each ordinal variable $k$ for $k=1,\ldots, K$ takes
+integer value $j=1, \ldots, J_k$. The distribution of $Y_i$ is assumed
+to be governed by another $k$-vector of unobserved continuous variable
+$Y_i^*$. There are $d$ underlying factors.
+
+\begin{itemize}
+\item The \emph{stochastic component} is described in terms of the latent
+variable $Y_i^*$:
+\begin{eqnarray*}
+Y_{i}^*  \sim \textrm{Normal}_K(\mu_i, I_K),
+\end{eqnarray*}
+where $Y_i^*=(Y_{i1}^*, \ldots, Y_{iK}^*)$, and $\mu_i$ is the mean vector
+for $Y_i^*$, and $\mu_i=(\mu_{i1},\ldots, \mu_{iK})$.
+
+Instead of $Y_{ik}^*$, we observe ordinal  variable $Y_{ik}$,
+\begin{eqnarray*}
+Y_{ik} = j \textrm{ if } \gamma_{(j-1),k} \le Y_{ik}^* \le \gamma_{jk}
+\textrm{ for } \quad j=1,\ldots, J_k, k=1,\ldots, K.
+\end{eqnarray*}
+where $\gamma_{jk}, j=0,\ldots, J$ are the threshold parameters for
+the $k$th variable with the following constraints, $\gamma_{lk} <
+\gamma_{mk}$ for $l < m$, and $\gamma_{0k}=-\infty, \gamma_{J_k
+k}=\infty$ for any $k=1, \ldots, K$.  It follows that the probability
+of observing $Y_{ik}$ belonging to category $j$ is,
+\begin{eqnarray*}
+\Pr(Y_{ik}=j) =\Phi(\gamma_{jk} \mid \mu_{ik})-\Phi(\gamma_{(j-1),k} \mid \mu_{ik}) \textrm{ for } j=1,\ldots,J_k
+\end{eqnarray*}
+where $\Phi(\cdot \mid\mu_{ik})$ is the cumulative distribution
+function of the Normal distribution with mean $\mu_{ik}$ and variance
+1.
+
+\item The \emph{systematic component} is given by,
+\begin{eqnarray*}
+\mu_i = \Lambda\phi_i,
+\end{eqnarray*}
+where $\Lambda$ is a $K \times d$ matrix of factor loadings for each
+variable, $\phi_i$ is a $d$-vector of factor scores for observation
+$i$. Note both $\Lambda$ and $\phi$ need to be estimated.
+
+\item The independent conjugate \emph{prior} for each element of $\Lambda$,
+$\Lambda_{ij}$ is given by
+\begin{eqnarray*}
+\Lambda_{ij} \sim \textrm{Normal}(l_{0_{ij}}, L_{0_{ij}}^{-1})
+\textrm{ for } i=1,\ldots, k; \quad j=1,\ldots, d.
+\end{eqnarray*}
+
+\item The \emph{prior} for $\phi_i$ is,
+\begin{eqnarray*}
+\phi_{i(2:d)} \sim \textrm{Normal}(0, I_{d-1}), \textrm{ for } \quad i=2, \ldots, n.
+\end{eqnarray*}
+where $I_{d-1}$ is a $ (d-1)\times (d-1) $ identity matrix. Note the
+first element of $\phi_i$ is 1.
+
+\end{itemize}
+
+\subsubsection{Output Values}
+
+The output of each Zelig command contains useful information which you
+may view. For example, if you run:
+\begin{verbatim}
+z.out <- zelig(cbind(Y1, Y2, Y3), model = "factor.ord", data)
+\end{verbatim}
+
+\noindent then you may examine the available information in \texttt{z.out} by
+using \texttt{names(z.out)}, see the draws from the posterior
+distribution of the \texttt{coefficients} by using
+\texttt{z.out\$coefficients}, and view a default summary of
+information through \texttt{summary(z.out)}. Other elements available
+through the \texttt{\$} operator are listed below.
+
+\begin{itemize}
+\item From the \texttt{zelig()} output object \texttt{z.out}, you may extract:
+
+\begin{itemize}
+\item \texttt{coefficients}: draws from the posterior distributions
+of the estimated factor loadings, the estimated cut points $\gamma$ for each
+variable. Note the first element of $\gamma$ is normalized to be 0. If 
+\texttt{store.scores=TRUE}, the estimated factors scores are also contained in 
+\texttt{coefficients}.
+
+   \item {\tt zelig.data}: the input data frame if {\tt save.data = TRUE}.  
+
+\item \texttt{seed}: the random seed used in the model.   
+
+\end{itemize}
+
+\item Since there are no explanatory variables, the \texttt{sim()} procedure is
+not applicable for factor analysis models.
+
+\end{itemize}
+
+\subsection* {How to Cite} 
+
+\input{cites/factor.ord}
+\input{citeZelig}
+
+<<afterpkgs, echo=FALSE>>=
+ after<-search()
+ torm<-setdiff(after,before)
+ for (pkg in torm)
+ detach(pos=match(pkg,search()))
+@
+ \end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

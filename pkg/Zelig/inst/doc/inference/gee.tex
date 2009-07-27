@@ -1,0 +1,76 @@
+\subsection{General Estimating Equation}
+
+Consider a logitudinal data set where $Y_{it}$ denotes the scalar
+outcome variable and $X_{it}$ represents an $(k \times 1)$ vector of
+explanatory variables for each individual $i$ ($i=1,\dots,N$) at each
+time period $t$ ($t=1,\dots,T$).  The stochastic component is
+given by
+\begin{eqnarray*}
+  Y_{it} & \sim & f(y_{it}\mid \mu_{it}, \sigma^2_{it})
+\end{eqnarray*}
+where $y_{it}$ is a realization of $Y_{it}$, $\mu_{it}$ is the mean,
+and $\sigma^2_{it}$ is the variance of $Y_{it}$.  Then the two
+systematic components model the mean and variance as follows
+\begin{eqnarray*}
+\mu_{it} & \equiv & E(Y_{it}\mid X_i) \; = \; g^{-1}(X_i^\top \beta), \\
+\sigma^2_{it} & \equiv & {\rm Var}(Y_{it}\mid \mu_{it}) \; = \; \phi\, v(\mu_{it}).
+\end{eqnarray*}
+where $\beta$ is the vector of coefficients, and $\phi$ is a
+dispersion parameter.  The fucntions $g(\cdot)$ and $v(\cdot)$ are
+known, and are called the ``link function'' and ``variance function,''
+respectively.  GEE models may permit a third systematic component that
+allows the covariance to vary over individuals as
+\begin{eqnarray*}
+  {\rm Cov}(Y_i) = A_i^{\frac{1}{2}} R(\alpha) A_i^{\frac{1}{2}},
+\end{eqnarray*}
+where $R(\alpha)$ is the $(T \times T)$ correlation matrix (all
+diagonal elements equal to 1) and is a function of a parameter
+$\alpha$, and $A_i$ is a diagonal matrix of variances
+$\sigma^2_{it}=\phi v(\mu_{it})$. There are various ways to specify
+the correlation structure:
+\begin{itemize}
+\item Independence (\texttt{constr = "independence"}): ${\rm
+    Cor}(Y_{it}, Y_{it'})=0$ for all $t$ and $t'$ with $t\ne t'$.
+\item Exchangeable (\texttt{constr = "exchangeable"}): ${\rm
+    Cor}(Y_{it}, Y_{it'})=\alpha$ for all $t$ and $t'$ with $t\ne t'$.
+\item $m$th order autoregressive (\texttt{constr = "AR-M"} and
+  \texttt{Mv} must be set to $m$): For example, the first order
+  autoregressive model implies ${\rm Cor}(Y_{it},
+  Y_{it'})=\alpha^{|t-t'|}$ for all $t$ and $t'$ with $t\ne t'$.
+\item Stationary $m$ dependent (\texttt{constr = "stat\_M\_dep"} and
+  \texttt{Mv} must be set to $m$}):
+  $${\rm Cor}(Y_{it}, Y_{it'})=\left\{\begin{array}{ccc}
+      \alpha_{|t_j-t_j'|} & {\rm if} & |t_j-t_j'|\le m \\ 0 & {\rm if}
+      & |t_j-t_j'| > m
+    \end{array}\right.$$
+\item Non-stationary $m$ dependent (\texttt{constr =
+    "non\_stat\_M\_dep"} and \texttt{Mv} must be set to $m$): {\bf I'm
+    not sure what this is!}
+\item Unstructured (\texttt{constr = "unstructured"}): ${\rm
+    Cor}(Y_{it}, Y_{it'})=\alpha_{tt'}$ for all $t$ and $t'$ with
+  $t\ne t'$.
+\end{itemize}
+
+Then, the GEE estimator is a solution to the following estimating
+equation,
+\begin{eqnarray*}
+\sum_{i=1}^N D_i^\top V_i (Y_i - \mu_i) & = & 0
+\end{eqnarray*}
+where $Y_i=(Y_{i1}, Y_{i2}, \dots, Y_{iN})$ and $\mu_i=(\mu_{i1},
+\mu_{i2}, \dots,\mu_{iN})$ are vectors of length $T$, and $D_i = d
+\mu_i/ d\beta$.  The consistency of the GEE estimator for $\beta$ does
+not depend on the specification of the correlation matrix. That is,
+even with a misspecified correlation matrix, the estimate of $\beta$
+is consistent. However, the correct correlation matrix specification
+will make estimation efficient, and the closer the specified
+correlation structure is to the true structure, the more efficient is
+the estimator.  GEE also utilizes the sandwich estimator to produce
+robust standard errors, which produces consistent standard errors even
+if the correlation and variance specifications are incorrect.
+
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "~/research/zelig/docs/zelig"
+%%% End: 
